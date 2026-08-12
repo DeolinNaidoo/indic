@@ -8,6 +8,14 @@ f_isStart(string sessStr) =>
 //#endregion
 
 // ═══════════════════════════════════════════════════════════════════════════════════
+// QUICK TOGGLES
+// ═══════════════════════════════════════════════════════════════════════════════════
+grpQuick = "─── Quick Toggles ───"
+q_hideLevels     = input.bool(false, "Hide All ICT Levels & Opens", group=grpQuick)
+q_hideFractals   = input.bool(false, "Hide All Fractal Models", group=grpQuick)
+q_hideHtfCandles = input.bool(false, "Hide HTF Candles", group=grpQuick)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
 // MASTER FEATURE TOGGLES
 // ═══════════════════════════════════════════════════════════════════════════════════
 grpMaster = "─── Master Toggles ───"
@@ -376,12 +384,15 @@ textSize(string s) =>
         =>          size.huge
 
 directionalLabel(int xBar, float yPrice, string txt, bool bullish) =>
-    label.new(xBar, yPrice, text = txt, xloc = xloc.bar_index, yloc = yloc.price, style = bullish ? label.style_label_up : label.style_label_down, color = na, textcolor = color.gray, size = textSize(fr_labelSize), text_font_family = font.family_monospace)
+    if q_hideFractals
+        na
+    else
+        label.new(xBar, yPrice, text = txt, xloc = xloc.bar_index, yloc = yloc.price, style = bullish ? label.style_label_up : label.style_label_down, color = na, textcolor = color.gray, size = textSize(fr_labelSize), text_font_family = font.family_monospace)
 
 eqLineColor() => fr_showEQ ? fr_eqColor : fr_noColor
 
 drawSweepLine(int fromBar, float fromPrice, int toBar) =>
-    line ln = fr_showSweep ? line.new(fromBar, fromPrice, toBar, fromPrice, color = fr_sweepColor, style = lineStyleFromStr(fr_sweepStyle), width = fr_sweepWidth) : na
+    line ln = fr_showSweep and not q_hideFractals ? line.new(fromBar, fromPrice, toBar, fromPrice, color = fr_sweepColor, style = lineStyleFromStr(fr_sweepStyle), width = fr_sweepWidth) : na
     ln
 
 newLHLine(float price) =>
@@ -475,7 +486,7 @@ newHtfCandle() =>
 
 drawEarlyCisd(bool isBull, float level, int idx, int confirmBar) =>
     array<EarlyCisdRecord> target = isBull ? bullEarlyCisdRecords : bearEarlyCisdRecords
-    if fr_showEarlyCisd
+    if fr_showEarlyCisd and not q_hideFractals
         ln = line.new(idx, level, confirmBar + 3, level, color = fr_earlyCisdColor, style = lineStyleFromStr(fr_earlyCisdStyle), width = fr_earlyCisdWidth)
         label lbl = na
         if fr_showLabels
@@ -509,7 +520,7 @@ parseFloats(string src) =>
     out
 
 createStdDevProjections(C2Setup s, int confirmBar) =>
-    if fr_showStdDev
+    if fr_showStdDev and not q_hideFractals
         devs = parseFloats(fr_stdDevInput)
         if devs.size() > 0
             off     = bar_index - s.cisdIndex
@@ -550,7 +561,7 @@ confirmCisd(C2Setup s, int confirmBar) =>
     clr      = s.isBull ? fr_cisdBullColor : fr_cisdBearColor
     lnStyle  = s.isBull ? fr_cisdBullStyle : fr_cisdBearStyle
     lnWidth  = s.isBull ? fr_cisdBullWidth : fr_cisdBearWidth
-    if showLine
+    if showLine and not q_hideFractals
         s.cisdLine := line.new(s.cisdIndex, s.cisdLevel, confirmBar + 3, s.cisdLevel, color = clr, style = lineStyleFromStr(lnStyle), width = lnWidth)
         if fr_showLabels
             s.cisdLabel := label.new(confirmBar + 3, s.cisdLevel, s.isBull ? '+CISD' : '-CISD', xloc = xloc.bar_index, style = label.style_label_left, color = na, textcolor = clr, size = textSize(fr_labelSize), text_font_family = font.family_monospace)
@@ -616,10 +627,10 @@ drawPhase(bool isBull, bool isC4) =>
     bot   = math.min(open, mid)
     yDash = isBull ? bot : top
     bxCol = isBull ? fr_tSpotBullColor : fr_tSpotBearColor
-    box   bx   = fr_showTSpot ? box.new(bar_index, top, bar_index, bot, border_color = na, bgcolor = bxCol) : na
-    line  dash = fr_showEQ ? line.new(bar_index, yDash, bar_index, yDash, color = fr_eqColor, width = fr_eqWidth, style = lineStyleFromStr(fr_eqStyle)) : na
+    box   bx   = (fr_showTSpot and not q_hideFractals) ? box.new(bar_index, top, bar_index, bot, border_color = na, bgcolor = bxCol) : na
+    line  dash = (fr_showEQ and not q_hideFractals) ? line.new(bar_index, yDash, bar_index, yDash, color = fr_eqColor, width = fr_eqWidth, style = lineStyleFromStr(fr_eqStyle)) : na
     label lbl  = na
-    if isC4 and fr_showTSpot and fr_showLabels and validTf
+    if isC4 and fr_showTSpot and fr_showLabels and validTf and not q_hideFractals
         lbl := directionalLabel(bar_index + 2, isBull ? bot : top, 'C4', isBull)
     [bx, dash, lbl, top, bot]
 
@@ -725,7 +736,7 @@ method checkCisdConfirm(C2Setup s) =>
 processC2(bool trigger, bool allow, bool isBull, float extremePrice, int extremeBar, float sweepFromPrice, int sweepFromBar, float cisdLevel, int cisdIndex, bool cisdAlreadyConfirmed, int cisdConfirmBar, C2Setup existing) =>
     C2Setup result = existing
     if trigger and allow
-        label lbl = (validTf and fr_showLabels) ? directionalLabel(extremeBar, extremePrice, 'C2', isBull) : na
+        label lbl = (validTf and fr_showLabels and not q_hideFractals) ? directionalLabel(extremeBar, extremePrice, 'C2', isBull) : na
         drawSweepLine(sweepFromBar, sweepFromPrice, bar_index)
         result := newSetup(isBull, extremePrice, lbl, cisdLevel, cisdIndex, cisdAlreadyConfirmed, cisdConfirmBar)
     else if periodChanged and not na(existing) and not existing.dead
@@ -904,62 +915,62 @@ tipPDEQ   = "PREVIOUS DAY EQUILIBRIUM (PD-EQ)\n50% midpoint of PD-H and PD-L."
 tipPWH    = "PREVIOUS WEEK HIGH (PWH)\nBased on the True Week Open (Mon 18:00 NY) cycle."
 tipPWL    = "PREVIOUS WEEK LOW (PWL)\nBased on the True Week Open (Mon 18:00 NY) cycle."
 
-if showSessions and isNYAM
+if showSessions and isNYAM and not q_hideLevels
     f_create(nyamLn, nyamLb, open, sessionColor, "TNY", tipNYAM, sessionColor, "dotted", "small", lineWidthIn)
-if showTMSO and is930
+if showTMSO and is930 and not q_hideLevels
     f_create(tmsoLn, tmsoLb, open, sessionColor, "TMSO", tipTMSO, sessionColor, "dotted", "small", lineWidthIn)
 
-if showDO and isDO
+if showDO and isDO and not q_hideLevels
     f_create(doLn,   doLb,   open, doColor,      "DO",         tipDO,   opensTextColor, "global", "small", lineWidthIn)
-if showDay and isTrueDay
+if showDay and isTrueDay and not q_hideLevels
     f_create(dayLn,  dayLb,  open, dayColor,     "TDO",        tipDay,  opensTextColor, "global", "small", lineWidthIn)
-if showWO and isWO
+if showWO and isWO and not q_hideLevels
     f_create(woLn,   woLb,   open, woColor,      "WO",         tipWO,   opensTextColor, "global", "small", lineWidthIn)
-if showWeek and isTrueWk
+if showWeek and isTrueWk and not q_hideLevels
     f_create(wkLn,   wkLb,   open, weekColor,    "TWO",        tipWeek, opensTextColor, "global", "small", lineWidthIn)
-if showMO and isMO
+if showMO and isMO and not q_hideLevels
     f_create(moLn,   moLb,   open, moColor,      "MO",         tipMO,   opensTextColor, "global", "small", lineWidthIn)
-if showMonth and isTrueMo
+if showMonth and isTrueMo and not q_hideLevels
     f_create(moLn,   moLb,   open, monthColor,   "TMO",        tipMonth,opensTextColor, "global", "small", lineWidthIn)
-if showYO and isYO
+if showYO and isYO and not q_hideLevels
     f_create(yoLn,   yoLb,   open, yoColor,      "YO",         tipYO,   opensTextColor, "global", "small", lineWidthIn)
-if showYear and isTrueYr
+if showYear and isTrueYr and not q_hideLevels
     f_create(yrLn,   yrLb,   open, yearColor,    "TYO",        tipYear, opensTextColor, "global", "small", lineWidthIn)
 
-if showHOD_LOD and is1800
+if showHOD_LOD and is1800 and not q_hideLevels
     f_create(hodLn, hodLb, high, hodLodColor, "HOD", tipHOD, hodLodTxtCol, "solid", "normal", hodLodWidth)
     f_create(lodLn, lodLb, low, hodLodColor, "LOD", tipLOD, hodLodTxtCol, "solid", "normal", hodLodWidth)
 
-if showPDH_PDL and is1800 and not na(pdh)
+if showPDH_PDL and is1800 and not na(pdh) and not q_hideLevels
     f_create(pdhLn, pdhLb, pdh, pdColor, "PD-H", tipPDH, pdTextColor, "pdhpwl", "normal", pdWidth)
-if showPDH_PDL and is1800 and not na(pdl)
+if showPDH_PDL and is1800 and not na(pdl) and not q_hideLevels
     f_create(pdlLn, pdlLb, pdl, pdColor, "PD-L", tipPDL, pdTextColor, "pdhpwl", "normal", pdWidth)
 
-if showPDH_PDL and is1800 and not na(pd_eq)
+if showPDH_PDL and is1800 and not na(pd_eq) and not q_hideLevels
     f_create(pdEqLn, pdEqLb, pd_eq, pdEqColor, "PD-EQ", tipPDEQ, pdEqTxtCol, "pdeq", "normal", pdEqWidth)
 
-if showPWH_PWL and isTrueWk and tfIs5mOrHigher and not na(pwh)
+if showPWH_PWL and isTrueWk and tfIs5mOrHigher and not na(pwh) and not q_hideLevels
     f_create(pwhLn, pwhLb, pwh, pwhPwlColor, "PWH", tipPWH, pwhPwlTxtCol, "dotted", "normal", 2)
-if showPWH_PWL and isTrueWk and tfIs5mOrHigher and not na(pwl)
+if showPWH_PWL and isTrueWk and tfIs5mOrHigher and not na(pwl) and not q_hideLevels
     f_create(pwlLn, pwlLb, pwl, pwhPwlColor, "PWL", tipPWL, pwhPwlTxtCol, "dotted", "normal", 2)
 
 // ─── Extension Logic for TNY/TMSO ───
 var bool tnyCycleActive = false
 var bool tmsoCycleActive = false
 
-if isNYAM
+if isNYAM and not q_hideLevels
     tnyCycleActive := true
-if is930
+if is930 and not q_hideLevels
     tmsoCycleActive := true
 
-if tnyCycleActive and showSessions
+if tnyCycleActive and showSessions and not q_hideLevels
     f_extend(nyamLn, nyamLb)
     
-if tmsoCycleActive and showTMSO
+if tmsoCycleActive and showTMSO and not q_hideLevels
     f_extend(tmsoLn, tmsoLb)
 
 // ─── Hide TNY/TMSO at Day End (18:00 NY) ───
-if is1800
+if is1800 and not q_hideLevels
     while array.size(nyamLn) > 0
         line.delete(array.shift(nyamLn))
     while array.size(nyamLb) > 0
@@ -972,22 +983,23 @@ if is1800
     tmsoCycleActive := false
 
 // Standard Extensions for other opens
-f_extend(doLn,       doLb)
-f_extend(dayLn,      dayLb)
-f_extend(woLn,       woLb)       
-f_extend(wkLn,       wkLb)
-f_extend(moLn,       moLb)       
-f_extend(yrLn,       yrLb)
-f_extend(yoLn,       yoLb)       
+if not q_hideLevels
+    f_extend(doLn,       doLb)
+    f_extend(dayLn,      dayLb)
+    f_extend(woLn,       woLb)       
+    f_extend(wkLn,       wkLb)
+    f_extend(moLn,       moLb)       
+    f_extend(yrLn,       yrLb)
+    f_extend(yoLn,       yoLb)       
 
-f_extend(pdhLn,      pdhLb)
-f_extend(pdlLn,      pdlLb)
-f_extend(pdEqLn,     pdEqLb)
-f_extend(pwhLn,      pwhLb)
-f_extend(pwlLn,      pwlLb)
+    f_extend(pdhLn,      pdhLb)
+    f_extend(pdlLn,      pdlLb)
+    f_extend(pdEqLn,     pdEqLb)
+    f_extend(pwhLn,      pwhLb)
+    f_extend(pwlLn,      pwlLb)
 
 // Dynamic HOD/LOD Update
-if showHOD_LOD and array.size(hodLn) > 0
+if showHOD_LOD and array.size(hodLn) > 0 and not q_hideLevels
     int lastIdx = array.size(hodLn) - 1
     line lH = array.get(hodLn, lastIdx)
     line.set_x1(lH, hodBar)
@@ -1015,7 +1027,7 @@ var line[]  activeLines  = array.new_line()
 var label[] activeLabels = array.new_label()
 var int[]   activeTypes  = array.new_int()
 
-if openCondition or currentCondition
+if (openCondition or currentCondition) and not q_hideLevels
     float price     = openCondition ? o_tf : open
     color lineColor = openCondition ? (o_tf == h_tf ? i_openHighColor : i_openLowColor) : (open == high ? i_currentOpenHighColor : i_currentOpenLowColor)
     int length      = openCondition ? i_lineLength : i_currentLineLength
@@ -1126,7 +1138,7 @@ bool nyPmWas   = not na(time("", nyPmSessionInput,    "America/New_York")[1])
 
 bool isConfirmedCache = barstate.isconfirmed
 
-if showKzInput and kzTfAllowed
+if showKzInput and kzTfAllowed and not q_hideLevels
     for i = 0 to (sessions.size() > 0 ? sessions.size() - 1 : na)
         SessionData sd = sessions.get(i)
 
@@ -1350,7 +1362,7 @@ if periodChanged
     while htfCandles.size() > fr_htfCandleCount
         htfCandles.pop().delete()
     htfOpenBar := bar_index
-    if fr_showLH
+    if fr_showLH and not q_hideHtfCandles
         if hLines.size() > 0
             line.set_x2(hLines.first(), bar_index)
             line.set_x2(lLines.first(), bar_index)
@@ -1363,7 +1375,7 @@ if periodChanged
 else if htfCandles.size() > 0
     htfCandles.set(0, htfCandles.first().update(high, low, close, bar_index))
 
-if fr_showLH and htfCandles.size() > 0 and hLines.size() > 0
+if fr_showLH and htfCandles.size() > 0 and hLines.size() > 0 and not q_hideHtfCandles
     curCandle = htfCandles.first()
     updateLHLine(hLines.first(), curCandle.h)
     updateLHLine(lLines.first(), curCandle.l)
@@ -1402,12 +1414,12 @@ if fr_showAlerts
     if c2SellTrigger and fr_allowSell
         alert('Bearish C2 formed on ' + syminfo.ticker, alert.freq_once_per_bar)
 
-if fr_showVlines and periodChanged
+if fr_showVlines and periodChanged and not q_hideHtfCandles
     vLines.unshift(line.new(bar_index, low - ta.tr, bar_index, high + ta.tr, xloc.bar_index, extend.both, fr_lineColor, lineStyleFromStr(fr_lineStyle), fr_lineWidth))
     while vLines.size() > fr_htfCandleCount
         line.delete(vLines.pop())
 
-if (barstate.islast or barstate.isrealtime) and validTf and htfCandles.size() > 0 and not fr_hideHtf
+if (barstate.islast or barstate.isrealtime) and validTf and htfCandles.size() > 0 and not fr_hideHtf and not q_hideHtfCandles
     n = htfCandles.size()
     for i = n - 1 to 0
         htfCandles.get(i).draw(bar_index + candleOffset + fr_candleSpacing * (n - 1 - i))
