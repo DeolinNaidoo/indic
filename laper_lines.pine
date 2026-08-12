@@ -1,0 +1,1480 @@
+//@version=6
+indicator("Larper Lines [ICT + Fractal]", overlay=true, max_labels_count=500, max_lines_count=500, max_boxes_count=500, max_bars_back=5000)
+
+//#region[Helper Functions]
+f_isStart(string sessStr) =>
+    t = time(timeframe.period, sessStr, "America/New_York")
+    not na(t) and na(t[1])
+//#endregion
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// MASTER FEATURE TOGGLES
+// ═══════════════════════════════════════════════════════════════════════════════════
+grpMaster = "─── Master Toggles ───"
+opensShowHistory = input.bool(false, "Enable Show History", group=grpMaster, tooltip="If enabled, historical levels will remain on the chart.")
+showSessions  = input.bool(true, "Enable True Session Opens (NY AM)", group=grpMaster)
+showTMSO      = input.bool(true, "Enable True Market Session Open (9:30 NY)", group=grpMaster)
+showDO        = input.bool(true, "Enable Daily Open (18:00 NY)", group=grpMaster)
+showDay       = input.bool(true, "Enable True Day Open (00:00 NY)", group=grpMaster)
+showHOD_LOD   = input.bool(true, "Enable Current Day High/Low (HOD/LOD)", group=grpMaster)
+showWO        = input.bool(true, "Enable Week Open (Mon 00:00 NY)", group=grpMaster)    
+showWeek      = input.bool(true, "Enable True Week Open (Mon 18:00 NY)", group=grpMaster)
+showMO        = input.bool(true, "Enable Month Open (1st 00:00 NY)", group=grpMaster)   
+showMonth     = input.bool(true, "Enable True Month Open (2nd Mon 18:00)", group=grpMaster)
+showYO        = input.bool(true, "Enable Year Open (Jan 1 00:00 NY)", group=grpMaster)  
+showYear      = input.bool(true, "Enable True Year Open (Apr 1, 00:00 NY)", group=grpMaster)
+showPDH_PDL   = input.bool(true, "Enable PD-H/PD-L & PD-EQ", group=grpMaster)
+showPWH_PWL   = input.bool(false, "Enable PWH/PWL", group=grpMaster)
+i_showCurrent = input.bool(true, "Enable Devil's Mark (CTF)", group=grpMaster)
+i_showHTF     = input.bool(false, "Enable Devil's Mark (HTF)", group=grpMaster)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// ICT SESSION BOXES & PIVOTS SETTINGS
+// ═══════════════════════════════════════════════════════════════════════════════════
+grpICT = "─── ICT Sessions ───"
+showKzInput      = input.bool(true, "Enable ICT Sessions", group=grpICT, tooltip="Toggle all ICT session drawings.")
+kzMinTfInput     = input.timeframe("5", "Min TF for Sessions", group = grpICT, tooltip = "Minimum timeframe to show session boxes.")
+kzMaxTfInput     = input.timeframe("15", "Max TF for Sessions", group = grpICT, tooltip = "Maximum timeframe to show session boxes. Set equal to Min TF to show on only one timeframe.")
+showKzBoxesInput = input.bool(true, "Show Killzone Boxes", group = grpICT)
+showKzTextInput  = input.bool(true, "Show Box Labels", group = grpICT)
+boxTranspInput   = input.int(80, "Box Transparency", minval = 50, maxval = 95, step = 5, group = grpICT)
+
+useAsiaInput     = input.bool(true, "", inline = "kz1", group = grpICT)
+asiaNameInput    = input.string("Asia", "", inline = "kz1", group = grpICT)
+asiaSessionInput = input.session("2000-0000", "", inline = "kz1", group = grpICT)
+asiaColorInput   = input.color(#42A5F5, "", inline = "kz1", group = grpICT)
+
+useLondonInput     = input.bool(true, "", inline = "kz2", group = grpICT)
+londonNameInput    = input.string("London", "", inline = "kz2", group = grpICT)
+londonSessionInput = input.session("0200-0500", "", inline = "kz2", group = grpICT)
+londonColorInput   = input.color(#EF5350, "", inline = "kz2", group = grpICT)
+
+useNyAmInput     = input.bool(true, "", inline = "kz3", group = grpICT)
+nyAmNameInput    = input.string("NY AM", "", inline = "kz3", group = grpICT)
+nyAmSessionInput = input.session("0930-1100", "", inline = "kz3", group = grpICT)
+nyAmColorInput   = input.color(#26A69A, "", inline = "kz3", group = grpICT)
+
+useNyLunchInput     = input.bool(true, "", inline = "kz4", group = grpICT)
+nyLunchNameInput    = input.string("NY Lunch", "", inline = "kz4", group = grpICT)
+nyLunchSessionInput = input.session("1200-1300", "", inline = "kz4", group = grpICT)
+nyLunchColorInput   = input.color(#FFCA28, "", inline = "kz4", group = grpICT)
+
+useNyPmInput     = input.bool(true, "", inline = "kz5", group = grpICT)
+nyPmNameInput    = input.string("NY PM", "", inline = "kz5", group = grpICT)
+nyPmSessionInput = input.session("1330-1600", "", inline = "kz5", group = grpICT)
+nyPmColorInput   = input.color(#AB47BC, "", inline = "kz5", group = grpICT)
+
+showPivotsInput      = input.bool(true, "Show Session Pivots", group = grpICT)
+showPivotLabelsInput = input.bool(true, "Show Pivot Labels", group = grpICT)
+showPivotPriceInput  = input.bool(false, "Show Price on Labels", group = grpICT)
+pivotExtendInput     = input.string("Until Swept", "Extend Pivots", options = ["Until Swept", "Always"], group = grpICT)
+pivotStyleInput      = input.string("Solid", "Pivot Line Style", options = ["Solid", "Dashed", "Dotted"], inline = "pvstyle", group = grpICT)
+pivotWidthInput      = input.int(1, "", minval = 1, maxval = 4, inline = "pvstyle", group = grpICT)
+
+asiaHiLblInput    = input.string("AS.H", "KZ1 Hi / Lo", inline = "lbl1", group = grpICT)
+asiaLoLblInput    = input.string("AS.L", "", inline = "lbl1", group = grpICT)
+londonHiLblInput  = input.string("LO.H", "KZ2 Hi / Lo", inline = "lbl2", group = grpICT)
+londonLoLblInput  = input.string("LO.L", "", inline = "lbl2", group = grpICT)
+nyAmHiLblInput    = input.string("AM.H", "KZ3 Hi / Lo", inline = "lbl3", group = grpICT)
+nyAmLoLblInput    = input.string("AM.L", "", inline = "lbl3", group = grpICT)
+nyLunchHiLblInput = input.string("LN.H", "KZ4 Hi / Lo", inline = "lbl4", group = grpICT)
+nyLunchLoLblInput = input.string("LN.L", "", inline = "lbl4", group = grpICT)
+nyPmHiLblInput    = input.string("PM.H", "KZ5 Hi / Lo", inline = "lbl5", group = grpICT)
+nyPmLoLblInput    = input.string("PM.L", "", inline = "lbl5", group = grpICT)
+
+maxSessionsInput  = input.int(3, "Session History", minval = 1, maxval = 10, group = grpICT)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// FEATURE SETTINGS (Dark Mode Defaults)
+// ═══════════════════════════════════════════════════════════════════════════════════
+gV = "─── Colors & Styles ───"
+
+sessionColor = input.color(#2962FF,   "TNY/TMSO Line Color",           group = gV)
+doColor      = input.color(#787B86,  "Daily Open Color",             group = gV)
+dayColor     = input.color(#9CA3B8, "True Day Open Color",          group = gV)
+woColor      = input.color(#787B86,  "Week Open Color",              group = gV)
+weekColor    = input.color(#9CA3B8, "True Week Open Color",         group = gV)
+moColor      = input.color(#787B86,  "Month Open Color",             group = gV)
+monthColor   = input.color(#9CA3B8, "True Month Open Color",        group = gV)
+yoColor      = input.color(#787B86,  "Year Open Color",              group = gV)
+yearColor    = input.color(#9CA3B8, "True Year Open Color",         group = gV)
+
+pdColor      = input.color(#787B86, "PD-H/PD-L Line Color",         group = gV)
+pdTextColor  = input.color(#D1D4DC, "PD-H/PD-L Text Color",         group = gV)
+
+hodLodColor  = input.color(#FFFFFF,"HOD/LOD Line Color",           group = gV)
+hodLodTxtCol = input.color(#FFFFFF,"HOD/LOD Text Color",           group = gV)
+
+pdEqColor    = input.color(#F23645,  "PD-EQ Line Color",             group = gV)
+pdEqTxtCol   = input.color(#F23645,  "PD-EQ Text Color",             group = gV)
+
+pwhPwlColor  = input.color(#FFFFFF, "PWH/PWL Line Color",           group = gV)
+pwhPwlTxtCol = input.color(#FFFFFF,"PWH/PWL Text Color",           group = gV)
+
+opensTextColor = input.color(#D1D4DC, "Opens Text Color",             group = gV)
+
+lineWidthIn  = input.int(2, "Open Line Width", minval = 1, maxval = 5, group = gV)
+pdWidth      = input.int(1, "PD-H/PD-L Line Width", minval = 1, maxval = 5, group = gV)
+hodLodWidth  = input.int(1, "HOD/LOD Line Width", minval = 1, maxval = 5, group = gV)
+pdEqWidth    = input.int(2, "PD-EQ Line Width", minval = 1, maxval = 5, group = gV)
+
+lineStyleIn  = input.string("dotted", "Open Line Style", options = ["solid", "dashed", "dotted"], group = gV)
+pdStyleIn    = input.string("dotted", "PD-H/PD-L Line Style", options = ["solid", "dashed", "dotted"], group = gV)
+pdEqStyleIn  = input.string("dotted", "PD-EQ Line Style", options = ["solid", "dashed", "dotted"], group = gV)
+
+opensShowLabels   = input.bool(true, "Show Labels", group = gV)
+labelGap     = input.int(3, "Label Gap (bars right of line)", minval = 0, group = gV)
+
+lineStyle    = lineStyleIn == "dashed" ? line.style_dashed : lineStyleIn == "dotted" ? line.style_dotted : line.style_solid
+pdLnStyl     = pdStyleIn == "dashed" ? line.style_dashed : pdStyleIn == "dotted" ? line.style_dotted : line.style_solid
+pdEqLnStyl   = pdEqStyleIn == "dashed" ? line.style_dashed : pdEqStyleIn == "dotted" ? line.style_dotted : line.style_solid
+
+// --- Devil's Mark Settings ---
+gDM = "─── Devil's Mark Settings ───"
+i_currentLineLength = input.int(50, "CTF Line Length", minval=1, maxval=100, group = gDM)
+i_currentOpenHighColor = input.color(#FF3D81, "CTF Open == High Color", group = gDM)
+i_currentOpenLowColor  = input.color(#1E90FF, "CTF Open == Low Color",  group = gDM)
+i_currentEmojiLabel = input.string("DM", "CTF Mark Text", options = ["DM", "O=H", "O=L", "X", "*", "•"], group = gDM)
+i_currentLineWidth  = input.int(2, "CTF Line Width", minval=1, maxval=5, group = gDM)
+
+i_tf = input.timeframe("240", "HTF Timeframe", group = gDM)
+i_lineLength = input.int(50, "HTF Line Length", minval=1, maxval=100, group = gDM)
+i_openHighColor = input.color(#FF3D81, "HTF Open == High Color", group = gDM)
+i_openLowColor  = input.color(#1E90FF, "HTF Open == Low Color",  group = gDM)
+i_emojiLabel = input.string("DM", "HTF Mark Text", options = ["DM", "O=H", "O=L", "X", "*", "•"], group = gDM)
+i_hLineWidth = input.int(2, "HTF Line Width", minval=1, maxval=5, group = gDM)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// Fractal General Settings 
+// ═══════════════════════════════════════════════════════════════════════════════════
+grpModel   = '─── Fractal General Settings ───'
+fr_showAlerts = input.bool(true, 'Alerts?', group = grpModel, inline = 'alerts', tooltip = "To turn on the alerts, follow these steps:\n\n1) Make sure that the 'Alerts?' toggle is ON.\n2) Find, and click on, the three dots next to the indicator title on the top left of your chart, or right-click on the indicator on the chart.\n3) Click 'Add Alert on Fractal Model [Pro+]'\n4) Choose the Alert Name, if you wish, and confirm by clicking 'Create'")
+fr_showEarlyCisdAlerts = input.bool(false, 'Early CISD Alerts?', group = grpModel, inline = 'alerts', tooltip = "The global 'Alerts?' toggle above acts as a master switch. If it is OFF, Early CISD alerts will not fire even if this toggle is ON.")
+fr_showHistory = input.int(1, 'History', minval = 0, maxval = 40, group = grpModel, tooltip = 'Number of past setups (valid or invalidated) to keep drawn on the chart. 0 = unlimited.')
+fr_biasFilter = input.string('Neutral', 'Bias', options = ['Neutral', 'Bullish', 'Bearish'], group = grpModel)
+fr_modelType  = input.string('Auto', 'Fractal', options = ['Custom', 'Auto', '1m-15m', '3m-30m', '5m-1H', '15m-4H', '1H-1D', '4H-1W', '1D-1W'], group = grpModel, inline = 'fractal')
+fr_showEarlyCisd = input.bool(true, 'Early CISD', group = grpModel, inline = 'fractal')
+fr_customLTF  = input.timeframe('5',  'Custom LTF                      ', group = grpModel, inline = 'custom', active = fr_modelType == 'Custom')
+fr_customHTF  = input.timeframe('60', '', group = grpModel, inline = 'custom', tooltip = 'Only active when Alignment is set to Custom', active = fr_modelType == 'Custom')
+
+grpCandles     = '─── Fractal HTF Candles ───'
+fr_htfCandleCount = input.int(4, 'HTF Candles', minval = 1, maxval = 10, group = grpCandles, inline = 'count')
+fr_hideHtf        = input.bool(false, 'Hide?', group = grpCandles, inline = 'count', tooltip = 'Hide HTF candles preview')
+fr_candleOffsetIn = input.int(0, 'Offset', minval = 0, group = grpCandles)
+
+fr_bullBody   = input.color(color.new(#FFFFFF, 80), 'Body', group = grpCandles, inline = 'body')
+fr_bearBody   = input.color(color.new(#9E9E9E, 80), '', group = grpCandles, inline = 'body')
+fr_borderBull = input.color(color.new(#FFFFFF, 0), 'Borders', group = grpCandles, inline = 'border')
+fr_borderBear = input.color(color.new(#131722, 0), '', group = grpCandles, inline = 'border')
+fr_wickBull   = input.color(color.new(#FFFFFF, 0), 'Wick', group = grpCandles, inline = 'wick')
+fr_wickBear   = input.color(color.new(#9E9E9E, 0), '', group = grpCandles, inline = 'wick')
+
+fr_showHtfOpen  = input.bool(true, 'HTF Open', group = grpCandles, inline = 'htfopen')
+fr_htfOpenColor = input.color(color.new(#787B86, 30), '', group = grpCandles, inline = 'htfopen')
+fr_htfOpenStyle = input.string('Solid', '', options = ['Solid', 'Dashed', 'Dotted'], group = grpCandles, inline = 'htfopen')
+fr_htfOpenWidth = input.int(1, '', minval = 1, group = grpCandles, inline = 'htfopen')
+
+fr_showVlines = input.bool(true, 'O/C Time', group = grpCandles, inline = 'vline')
+fr_lineColor  = input.color(color.new(#787B86, 60), '', group = grpCandles, inline = 'vline')
+fr_lineStyle  = input.string('Solid', '', options = ['Solid', 'Dashed', 'Dotted'], group = grpCandles, inline = 'vline')
+fr_lineWidth  = input.int(1, '', minval = 1, group = grpCandles, inline = 'vline')
+
+fr_showLH  = input.bool(false, 'L/H Lines', group = grpCandles, inline = 'lh')
+fr_lhColor = input.color(color.new(#787B86, 30), '', group = grpCandles, inline = 'lh')
+fr_lhStyle = input.string('Solid', '', options = ['Solid', 'Dashed', 'Dotted'], group = grpCandles, inline = 'lh')
+fr_lhWidth = input.int(1, '', minval = 1, group = grpCandles, inline = 'lh')
+
+grpVisuals = '─── Fractal Model Style ───'
+fr_showLabels = input.bool(true, 'Labels?', group = grpVisuals, inline = 'lbl')
+fr_labelSize  = input.string('Small', '', group = grpVisuals, inline = 'lbl', options = ['Tiny', 'Small', 'Normal', 'Large', 'Huge'], active = fr_showLabels)
+fr_showSweep  = input.bool(false, 'Candle 1 Sweep', group = grpVisuals, inline = 'sweep')
+fr_sweepColor = input.color(color.new(#F23645, 0), '', group = grpVisuals, inline = 'sweep')
+fr_sweepStyle = input.string('Solid', '', options = ['Solid', 'Dashed', 'Dotted'], group = grpVisuals, inline = 'sweep')
+fr_sweepWidth = input.int(1, '', minval = 1, group = grpVisuals, inline = 'sweep')
+
+fr_earlyCisdColor = input.color(color.new(#2962FF, 0), 'Early CISD', group = grpVisuals, inline = 'earlycisd', active = fr_showEarlyCisd)
+fr_earlyCisdStyle = input.string('Dashed', '', options = ['Solid', 'Dashed', 'Dotted'], group = grpVisuals, inline = 'earlycisd', active = fr_showEarlyCisd)
+fr_earlyCisdWidth = input.int(1, '', minval = 1, group = grpVisuals, inline = 'earlycisd', active = fr_showEarlyCisd)
+
+fr_showBullCisd  = input.bool(true, 'Bullish CISD', group = grpVisuals, inline = 'bullcisd')
+fr_cisdBullColor = input.color(color.new(#2962FF, 0), '', group = grpVisuals, inline = 'bullcisd')
+fr_cisdBullStyle = input.string('Solid', '', options = ['Solid', 'Dashed', 'Dotted'], group = grpVisuals, inline = 'bullcisd', active = fr_showBullCisd)
+fr_cisdBullWidth = input.int(1, '', minval = 1, group = grpVisuals, inline = 'bullcisd', active = fr_showBullCisd)
+
+fr_showBearCisd  = input.bool(true, 'Bearish CISD', group = grpVisuals, inline = 'bearcisd')
+fr_cisdBearColor = input.color(color.new(#F23645, 0), '', group = grpVisuals, inline = 'bearcisd')
+fr_cisdBearStyle = input.string('Solid', '', options = ['Solid', 'Dashed', 'Dotted'], group = grpVisuals, inline = 'bearcisd', active = fr_showBearCisd)
+fr_cisdBearWidth = input.int(1, '', minval = 1, group = grpVisuals, inline = 'bearcisd', active = fr_showBearCisd)
+
+fr_showEQ  = input.bool(true, 'Candle Equilibrium', group = grpVisuals, inline = 'eq')
+fr_eqColor = input.color(color.new(#787B86, 0), '', group = grpVisuals, inline = 'eq')
+fr_eqStyle = input.string('Dotted', '', options = ['Solid', 'Dashed', 'Dotted'], group = grpVisuals, inline = 'eq')
+fr_eqWidth = input.int(1, '', minval = 1, group = grpVisuals, inline = 'eq')
+
+fr_showTSpot      = input.bool(true, 'T-Spot Box', group = grpVisuals, inline = 'tspot')
+fr_tSpotBullColor = input.color(color.new(#26A69A, 80), '', group = grpVisuals, inline = 'tspot')
+fr_tSpotBearColor = input.color(color.new(#787B86, 80), '', group = grpVisuals, inline = 'tspot')
+
+grpStdDev   = '─── Fractal Deviations ───'
+fr_showStdDev  = input.bool(false, 'Enable Projections?', group = grpStdDev, inline = 'stdb')
+fr_stdDevInput = input.string('-1,-2,-3', '', group = grpStdDev, inline = 'stdb', active = fr_showStdDev)
+fr_stdDevCalc  = input.string('Wick', 'Method', options = ['Wick', 'Body'], group = grpStdDev, inline = 'stdb', active = fr_showStdDev)
+fr_stdDevColor = input.color(color.new(#787B86, 0), '', group = grpStdDev, inline = 'stdc', active = fr_showStdDev)
+fr_stdDevStyle = input.string('Solid', '', options = ['Solid', 'Dashed', 'Dotted'], group = grpStdDev, inline = 'stdc', active = fr_showStdDev)
+fr_stdDevWidth = input.int(1, '', minval = 1, group = grpStdDev, inline = 'stdc', active = fr_showStdDev)
+
+grpDash  = '─── Larper Dashboard ───'
+fr_boolTable = input.bool(true, 'Show Dashboard', group = grpDash)
+fr_tableVert = input.string('Bottom', '', options = ['Top', 'Middle', 'Bottom'], inline = 'loc', group = grpDash)
+fr_tableHorz = input.string('Right', '', options = ['Left', 'Center', 'Right'], inline = 'loc', group = grpDash)
+fr_dashTextColor = input.color(color.new(#D1D4DC, 0), 'Text', group = grpDash, inline = 'color')
+fr_dashBgColor   = input.color(color.new(#131722, 0), 'Background', group = grpDash, inline = 'color')
+fr_dashAccentColor = input.color(color.new(#2962FF, 0), 'Header Accent', group = grpDash, inline = 'color')
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// OpenSourceFractal Constants and State
+// ═══════════════════════════════════════════════════════════════════════════════════
+fr_candleSpacing = 3
+fr_noColor       = color.new(#000000, 100)
+
+type HtfCandle
+    float o
+    float h
+    float l
+    float c
+    int   hBar
+    int   lBar
+    box   body
+    line  wickUp
+    line  wickDown
+    line  eqLine
+    int   midX
+    line  sweepLine   = na
+    bool  triggerBuy  = false
+    bool  triggerSell = false
+
+type PeriodState
+    float prevHigh        = na
+    float prevLow         = na
+    int   prevHighBar     = na
+    int   prevLowBar      = na
+    float prevPrevHigh    = na
+    float prevPrevLow     = na
+    int   prevPrevHighBar = na
+    int   prevPrevLowBar  = na
+    bool  prevC2Buy       = false
+    bool  prevC2Sell      = false
+
+type StdDevData
+    array<line>  lines
+    array<label> labels
+
+type C2Setup
+    bool  isBull
+    float extreme
+    int   phase     = 1
+    bool  dead      = false
+    label c2Lbl
+    box   c3Box     = na
+    line  c3Dash    = na
+    float cisdLevel     = na
+    int   cisdIndex     = na
+    bool  cisdConfirmed = false
+    line  cisdLine      = na
+    label cisdLabel     = na
+    StdDevData stdDevData = na
+    box   c4Box     = na
+    line  c4Dash    = na
+    label c4Lbl     = na
+    float c4Top     = na
+    float c4Bottom  = na
+    bool  c4Invalid = false
+
+type SetupRecord
+    C2Setup setup
+    int     creationBar
+
+type EarlyCisdRecord
+    line  ln
+    label lbl
+    int   barIndex
+
+var array<HtfCandle>        htfCandles           = array.new<HtfCandle>()
+var array<line>             vLines               = array.new<line>()
+var array<line>             hLines               = array.new<line>()
+var array<line>             lLines               = array.new<line>()
+var PeriodState              state                = PeriodState.new()
+var C2Setup                  buySetup             = na
+var C2Setup                  sellSetup            = na
+var array<SetupRecord>       setupRecords         = array.new<SetupRecord>()
+var array<EarlyCisdRecord>   bullEarlyCisdRecords = array.new<EarlyCisdRecord>()
+var array<EarlyCisdRecord>   bearEarlyCisdRecords = array.new<EarlyCisdRecord>()
+var int                      htfOpenBar           = na
+var line                     htfOpenLn            = na
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// OpenSourceFractal Functions
+// ═══════════════════════════════════════════════════════════════════════════════════
+fr_allowBuy  = fr_biasFilter != 'Bearish'
+fr_allowSell = fr_biasFilter != 'Bullish'
+
+tfLabel(string tf) =>
+    switch tf
+        '1'   => '1m'
+        '3'   => '3m'
+        '5'   => '5m'
+        '15'  => '15m'
+        '60'  => '1h'
+        '240' => '4h'
+        '1D'  => '1D'
+        'D'   => '1D'
+        '1W'  => '1W'
+        'W'   => '1W'
+        '1M'  => '1M'
+        'M'   => '1M'
+        =>       tf + 'm'
+
+tfMins(string tf) =>
+    switch tf
+        '1D' => 1440
+        'D'  => 1440
+        '1W' => 10080
+        'W'  => 10080
+        '1M' => 43200
+        'M'  => 43200
+        =>      int(str.tonumber(tf))
+
+curTfCode() =>
+    timeframe.isdaily ? '1D' : timeframe.isweekly ? '1W' : timeframe.ismonthly ? '1M' : timeframe.period
+
+tablePosition(string vert, string horz) =>
+    switch vert + '-' + horz
+        'Top-Left'      => position.top_left
+        'Top-Center'    => position.top_center
+        'Top-Right'     => position.top_right
+        'Middle-Left'   => position.middle_left
+        'Middle-Center' => position.middle_center
+        'Middle-Right'  => position.middle_right
+        'Bottom-Left'   => position.bottom_left
+        'Bottom-Center' => position.bottom_center
+        'Bottom-Right'  => position.bottom_right
+        =>                 position.bottom_right
+
+lineStyleFromStr(string s) =>
+    switch s
+        'Solid'  => line.style_solid
+        'Dashed' => line.style_dashed
+        'Dotted' => line.style_dotted
+        =>          line.style_dashed
+
+textSize(string s) =>
+    switch s
+        'Tiny'   => size.tiny
+        'Small'  => size.small
+        'Normal' => size.normal
+        'Large'  => size.large
+        =>          size.huge
+
+directionalLabel(int xBar, float yPrice, string txt, bool bullish) =>
+    label.new(xBar, yPrice, text = txt, xloc = xloc.bar_index, yloc = yloc.price, style = bullish ? label.style_label_up : label.style_label_down, color = na, textcolor = color.gray, size = textSize(fr_labelSize), text_font_family = font.family_monospace)
+
+eqLineColor() => fr_showEQ ? fr_eqColor : fr_noColor
+
+drawSweepLine(int fromBar, float fromPrice, int toBar) =>
+    line ln = fr_showSweep ? line.new(fromBar, fromPrice, toBar, fromPrice, color = fr_sweepColor, style = lineStyleFromStr(fr_sweepStyle), width = fr_sweepWidth) : na
+    ln
+
+newLHLine(float price) =>
+    line.new(bar_index, price, bar_index, price, xloc.bar_index, extend.none, fr_lhColor, lineStyleFromStr(fr_lhStyle), fr_lhWidth)
+
+updateLHLine(line ln, float price) =>
+    line.set_xy1(ln, line.get_x1(ln), price)
+    line.set_xy2(ln, bar_index, price)
+    line.set_color(ln, fr_lhColor)
+    line.set_style(ln, lineStyleFromStr(fr_lhStyle))
+    line.set_width(ln, fr_lhWidth)
+
+autoHTF() =>
+    switch timeframe.period
+        '1'   => '15'
+        '3'   => '30'
+        '5'   => '60'
+        '15'  => '240'
+        '60'  => '1D'
+        '240' => '1W'
+        '1D'  => '1M'
+        =>       '1M'
+
+ltfCode() =>
+    switch fr_modelType
+        '1m-15m' => '1'
+        '3m-30m' => '3'
+        '5m-1H'  => '5'
+        '15m-4H' => '15'
+        '1H-1D'  => '60'
+        '4H-1W'  => '240'
+        '1D-1W'  => '1D'
+        'Custom' => fr_customLTF
+        =>          curTfCode()
+
+isAutoValidTf(int mins) => mins == 1 or mins == 3 or mins == 5 or mins == 15 or mins == 60 or mins == 240 or mins == 1440
+
+method delete(HtfCandle c) =>
+    box.delete(c.body)
+    line.delete(c.wickUp)
+    line.delete(c.wickDown)
+    line.delete(c.eqLine)
+    line.delete(c.sweepLine)
+
+method update(HtfCandle c, float curH, float curL, float curC, int curBar) =>
+    if curH > c.h
+        c.h    := curH
+        c.hBar := curBar
+    if curL < c.l
+        c.l    := curL
+        c.lBar := curBar
+    c.c := curC
+    c
+
+method draw(HtfCandle c, int leftBar) =>
+    bool  isBull = c.c >= c.o
+    int   midX   = leftBar + 1
+    float eq     = (c.h + c.l) / 2
+    box.set_left(c.body, leftBar)
+    box.set_right(c.body, leftBar + 2)
+    box.set_top(c.body, math.max(c.o, c.c))
+    box.set_bottom(c.body, math.min(c.o, c.c))
+    box.set_bgcolor(c.body, isBull ? fr_bullBody : fr_bearBody)
+    box.set_border_color(c.body, isBull ? fr_borderBull : fr_borderBear)
+    line.set_x1(c.wickUp, midX)
+    line.set_x2(c.wickUp, midX)
+    line.set_y1(c.wickUp, c.h)
+    line.set_y2(c.wickUp, math.max(c.o, c.c))
+    line.set_color(c.wickUp, isBull ? fr_wickBull : fr_wickBear)
+    line.set_x1(c.wickDown, midX)
+    line.set_x2(c.wickDown, midX)
+    line.set_y1(c.wickDown, c.l)
+    line.set_y2(c.wickDown, math.min(c.o, c.c))
+    line.set_color(c.wickDown, isBull ? fr_wickBull : fr_wickBear)
+    line.set_x1(c.eqLine, midX)
+    line.set_x2(c.eqLine, midX)
+    line.set_y1(c.eqLine, eq)
+    line.set_y2(c.eqLine, eq)
+    line.set_color(c.eqLine, eqLineColor())
+    line.set_style(c.eqLine, lineStyleFromStr(fr_eqStyle))
+    line.set_width(c.eqLine, fr_eqWidth)
+    c.midX := midX
+
+newHtfCandle() =>
+    HtfCandle.new(open, high, low, close, bar_index, bar_index,
+         box.new(bar_index, high, bar_index, low, border_color = fr_borderBull, border_width = 1),
+         line.new(bar_index, high, bar_index, high, color = fr_wickBull),
+         line.new(bar_index, low, bar_index, low, color = fr_wickBull),
+         line.new(bar_index, high, bar_index, high, color = fr_noColor),
+         na)
+
+drawEarlyCisd(bool isBull, float level, int idx, int confirmBar) =>
+    array<EarlyCisdRecord> target = isBull ? bullEarlyCisdRecords : bearEarlyCisdRecords
+    if fr_showEarlyCisd
+        ln = line.new(idx, level, confirmBar + 3, level, color = fr_earlyCisdColor, style = lineStyleFromStr(fr_earlyCisdStyle), width = fr_earlyCisdWidth)
+        label lbl = na
+        if fr_showLabels
+            lbl := label.new(confirmBar + 3, level, isBull ? '+CISD' : '-CISD', xloc = xloc.bar_index, style = label.style_label_left, color = na, textcolor = fr_earlyCisdColor, size = textSize(fr_labelSize), text_font_family = font.family_monospace)
+        target.push(EarlyCisdRecord.new(ln, lbl, confirmBar))
+    if fr_showAlerts and fr_showEarlyCisdAlerts
+        alert((isBull ? 'Bullish' : 'Bearish') + ' Early CISD confirmed on ' + syminfo.ticker, alert.freq_once_per_bar)
+
+pruneEarlyCisd(array<EarlyCisdRecord> recs, int thresholdBar) =>
+    if not na(thresholdBar)
+        while recs.size() > 0 and recs.first().barIndex < thresholdBar
+            evicted = recs.shift()
+            line.delete(evicted.ln)
+            if not na(evicted.lbl)
+                label.delete(evicted.lbl)
+
+consumeLastEarlyCisd(array<EarlyCisdRecord> recs) =>
+    if recs.size() > 0
+        evicted = recs.pop()
+        line.delete(evicted.ln)
+        if not na(evicted.lbl)
+            label.delete(evicted.lbl)
+
+parseFloats(string src) =>
+    var out = array.new<float>()
+    array.clear(out)
+    for part in str.split(str.replace_all(src, ' ', ''), ',')
+        v = str.tonumber(part)
+        if not na(v)
+            out.push(v)
+    out
+
+createStdDevProjections(C2Setup s, int confirmBar) =>
+    if fr_showStdDev
+        devs = parseFloats(fr_stdDevInput)
+        if devs.size() > 0
+            off     = bar_index - s.cisdIndex
+            useWick = fr_stdDevCalc == 'Wick'
+
+            level0 = s.cisdLevel
+            level1 = s.extreme
+            if not useWick
+                for j = 0 to 50
+                    if s.isBull ? low[j] == s.extreme : high[j] == s.extreme
+                        level1 := s.isBull ? math.min(open[j], close[j]) : math.max(open[j], close[j])
+                        break
+
+            leftBar = s.cisdIndex
+            if s.cisdIndex < bar_index
+                prevBetter = s.isBull
+                     ? (useWick ? high[off + 1] > high[off] : math.max(open[off + 1], close[off + 1]) > math.max(open[off], close[off]))
+                     : (useWick ? low[off + 1]  < low[off]  : math.min(open[off + 1], close[off + 1]) < math.min(open[off], close[off]))
+                if prevBetter
+                    leftBar := s.cisdIndex - 1
+
+            rightBar   = confirmBar + 3
+            priceRange = s.isBull ? level0 - level1 : level1 - level0
+            lns        = array.new<line>()
+            lbs        = array.new<label>()
+
+            for dev in devs
+                devPrice = s.isBull ? level0 - priceRange * dev : level0 + priceRange * dev
+                lns.push(line.new(leftBar, devPrice, rightBar, devPrice, xloc = xloc.bar_index, color = fr_stdDevColor, width = fr_stdDevWidth, style = lineStyleFromStr(fr_stdDevStyle)))
+                if fr_showLabels
+                    lbs.push(label.new(rightBar, devPrice, str.tostring(dev), xloc = xloc.bar_index, style = label.style_label_left, color = na, textcolor = fr_stdDevColor, size = textSize(fr_labelSize), text_font_family = font.family_monospace))
+
+            s.stdDevData := StdDevData.new(lns, lbs)
+
+confirmCisd(C2Setup s, int confirmBar) =>
+    s.cisdConfirmed := true
+    showLine = s.isBull ? fr_showBullCisd : fr_showBearCisd
+    clr      = s.isBull ? fr_cisdBullColor : fr_cisdBearColor
+    lnStyle  = s.isBull ? fr_cisdBullStyle : fr_cisdBearStyle
+    lnWidth  = s.isBull ? fr_cisdBullWidth : fr_cisdBearWidth
+    if showLine
+        s.cisdLine := line.new(s.cisdIndex, s.cisdLevel, confirmBar + 3, s.cisdLevel, color = clr, style = lineStyleFromStr(lnStyle), width = lnWidth)
+        if fr_showLabels
+            s.cisdLabel := label.new(confirmBar + 3, s.cisdLevel, s.isBull ? '+CISD' : '-CISD', xloc = xloc.bar_index, style = label.style_label_left, color = na, textcolor = clr, size = textSize(fr_labelSize), text_font_family = font.family_monospace)
+    createStdDevProjections(s, confirmBar)
+
+deleteSetupVisuals(C2Setup s) =>
+    if not na(s)
+        if not na(s.c2Lbl)
+            label.delete(s.c2Lbl)
+        if not na(s.cisdLine)
+            line.delete(s.cisdLine)
+        if not na(s.cisdLabel)
+            label.delete(s.cisdLabel)
+        if not na(s.c3Box)
+            box.delete(s.c3Box)
+        if not na(s.c3Dash)
+            line.delete(s.c3Dash)
+        if not na(s.c4Box)
+            box.delete(s.c4Box)
+        if not na(s.c4Dash)
+            line.delete(s.c4Dash)
+        if not na(s.c4Lbl)
+            label.delete(s.c4Lbl)
+        if not na(s.stdDevData)
+            if not na(s.stdDevData.lines)
+                for ln in s.stdDevData.lines
+                    line.delete(ln)
+            if not na(s.stdDevData.labels)
+                for lb in s.stdDevData.labels
+                    label.delete(lb)
+
+registerRecord(C2Setup s) =>
+    setupRecords.push(SetupRecord.new(s, bar_index))
+    while fr_showHistory > 0 and setupRecords.size() > fr_showHistory
+        evicted = setupRecords.shift()
+        deleteSetupVisuals(evicted.setup)
+    earliestVisibleBar = setupRecords.size() > 0 ? setupRecords.first().creationBar : na
+    pruneEarlyCisd(bullEarlyCisdRecords, earliestVisibleBar)
+    pruneEarlyCisd(bearEarlyCisdRecords, earliestVisibleBar)
+
+autoTf = switch fr_modelType
+    '1m-15m' => '15'
+    '3m-30m' => '30'
+    '5m-1H'  => '60'
+    '15m-4H' => '240'
+    '1H-1D'  => '1D'
+    '4H-1W'  => '1W'
+    '1D-1W'  => '1W'
+    'Custom' => fr_customHTF
+    =>          autoHTF()
+
+validTf = fr_modelType == 'Auto' ? isAutoValidTf(tfMins(curTfCode())) : tfMins(curTfCode()) <= tfMins(ltfCode())
+
+[currentO, currentH, currentL, currentC, prevH1, prevL1] = request.security(syminfo.tickerid, autoTf, [open[0], high[0], low[0], close[0], high[1], low[1]], lookahead = barmerge.lookahead_on)
+
+c2Buy         = currentL < prevL1 and currentC > prevL1
+c2Sell        = currentH > prevH1 and currentC < prevH1
+periodChanged = time(autoTf) != time(autoTf)[1]
+
+drawPhase(bool isBull, bool isC4) =>
+    mid   = (state.prevHigh + state.prevLow) / 2
+    top   = math.max(open, mid)
+    bot   = math.min(open, mid)
+    yDash = isBull ? bot : top
+    bxCol = isBull ? fr_tSpotBullColor : fr_tSpotBearColor
+    box   bx   = fr_showTSpot ? box.new(bar_index, top, bar_index, bot, border_color = na, bgcolor = bxCol) : na
+    line  dash = fr_showEQ ? line.new(bar_index, yDash, bar_index, yDash, color = fr_eqColor, width = fr_eqWidth, style = lineStyleFromStr(fr_eqStyle)) : na
+    label lbl  = na
+    if isC4 and fr_showTSpot and fr_showLabels and validTf
+        lbl := directionalLabel(bar_index + 2, isBull ? bot : top, 'C4', isBull)
+    [bx, dash, lbl, top, bot]
+
+newSetup(bool isBull, float extreme, label c2Lbl, float cisdLevel, int cisdIndex, bool cisdAlreadyConfirmed, int cisdConfirmBar) =>
+    s = C2Setup.new(isBull, extreme, 1, false, c2Lbl)
+    [bx, dash, _, _, _] = drawPhase(isBull, false)
+    s.c3Box     := bx
+    s.c3Dash    := dash
+    s.cisdLevel := cisdLevel
+    s.cisdIndex := cisdIndex
+    if cisdAlreadyConfirmed and not na(cisdLevel) and not na(cisdIndex) and not na(cisdConfirmBar)
+        confirmCisd(s, cisdConfirmBar)
+    registerRecord(s)
+    s
+
+method advanceToC4(C2Setup s) =>
+    if not na(s.c3Box)
+        box.set_right(s.c3Box, bar_index)
+        line.set_x2(s.c3Dash, bar_index)
+    [bx, dash, lbl, top, bot] = drawPhase(s.isBull, true)
+    s.c4Box     := bx
+    s.c4Dash    := dash
+    s.c4Lbl     := lbl
+    s.c4Top     := top
+    s.c4Bottom  := bot
+    s.phase     := 2
+    s.c4Invalid := false
+    s
+
+method finish(C2Setup s) =>
+    if not na(s.c4Box)
+        box.set_right(s.c4Box, bar_index)
+        line.set_x2(s.c4Dash, bar_index)
+    s.phase := 0
+    s
+
+method deleteStdDev(C2Setup s) =>
+    if not na(s.stdDevData)
+        if not na(s.stdDevData.lines)
+            for ln in s.stdDevData.lines
+                line.delete(ln)
+        if not na(s.stdDevData.labels)
+            for lb in s.stdDevData.labels
+                label.delete(lb)
+        s.stdDevData := na
+    s
+
+method extendAndCheck(C2Setup s) =>
+    if not na(s) and not s.dead and s.phase != 0
+        box  extBox  = s.phase == 1 ? s.c3Box : s.c4Box
+        line extDash = s.phase == 1 ? s.c3Dash : s.c4Dash
+        if not na(extBox)
+            box.set_right(extBox, bar_index)
+            line.set_x2(extDash, bar_index)
+
+        c2Breach = s.isBull ? low < s.extreme : high > s.extreme
+        if c2Breach
+            if not na(s.c2Lbl)
+                label.set_text(s.c2Lbl, 'XC2')
+                label.set_textcolor(s.c2Lbl, s.phase == 2 ? color.orange : color.red)
+            if not na(s.c3Box)
+                box.delete(s.c3Box)
+                s.c3Box := na
+            if not na(s.c3Dash)
+                line.delete(s.c3Dash)
+                s.c3Dash := na
+            if not na(s.c4Box)
+                box.delete(s.c4Box)
+                s.c4Box := na
+            if not na(s.c4Dash)
+                line.delete(s.c4Dash)
+                s.c4Dash := na
+            if not na(s.c4Lbl)
+                label.delete(s.c4Lbl)
+                s.c4Lbl := na
+            s.deleteStdDev()
+            s.dead  := true
+            s.phase := 0
+    s
+
+method checkC4Invalid(C2Setup s) =>
+    if not na(s) and not s.dead and s.phase == 2 and not s.c4Invalid
+        invalid = s.isBull ? close[1] < s.c4Bottom : close[1] > s.c4Top
+        if invalid
+            s.c4Invalid := true
+            if not na(s.c4Lbl)
+                label.set_text(s.c4Lbl, 'XC4')
+                label.set_textcolor(s.c4Lbl, color.red)
+            if not na(s.c4Dash)
+                line.set_color(s.c4Dash, color.red)
+            if not na(s.c4Box)
+                box.delete(s.c4Box)
+                s.c4Box := na
+    s
+
+method checkCisdConfirm(C2Setup s) =>
+    if not na(s) and not s.dead and not s.cisdConfirmed and s.phase != 0 and not na(s.cisdLevel) and not na(s.cisdIndex)
+        confirmed = s.isBull ? close > s.cisdLevel : close < s.cisdLevel
+        if confirmed
+            confirmCisd(s, bar_index)
+    s
+
+processC2(bool trigger, bool allow, bool isBull, float extremePrice, int extremeBar, float sweepFromPrice, int sweepFromBar, float cisdLevel, int cisdIndex, bool cisdAlreadyConfirmed, int cisdConfirmBar, C2Setup existing) =>
+    C2Setup result = existing
+    if trigger and allow
+        label lbl = (validTf and fr_showLabels) ? directionalLabel(extremeBar, extremePrice, 'C2', isBull) : na
+        drawSweepLine(sweepFromBar, sweepFromPrice, bar_index)
+        result := newSetup(isBull, extremePrice, lbl, cisdLevel, cisdIndex, cisdAlreadyConfirmed, cisdConfirmBar)
+    else if periodChanged and not na(existing) and not existing.dead
+        result := existing.phase == 1 ? existing.advanceToC4() : existing.phase == 2 ? existing.finish() : existing
+    result
+
+markTrigger(bool trigger, bool allow, int idx, bool isBuy) =>
+    if trigger and allow and htfCandles.size() > idx
+        c = htfCandles.get(idx)
+        if isBuy
+            c.triggerBuy := true
+        else
+            c.triggerSell := true
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// TIME VARIABLES & LOGIC
+// ═══════════════════════════════════════════════════════════════════════════════════
+nyTZ = "America/New_York"
+nyDayOfWeek = dayofweek(time, nyTZ)
+nyDay       = dayofmonth(time, nyTZ)
+nyMonth     = month(time, nyTZ)
+
+isNYAM    = f_isStart("0730-0731:1234567")
+is930     = f_isStart("0930-0931:1234567")
+is1800    = f_isStart("1800-1801:1234567")
+is0000    = f_isStart("0000-0001:1234567")
+
+isDO      = is1800
+isTrueDay = is0000
+
+isTrueWk  = f_isStart("1800-1801:2")
+mondayAt18 = f_isStart("1800-1801:2")
+var int mondayCount = 0
+if nyMonth != nyMonth[1]
+    mondayCount := 0
+if mondayAt18
+    mondayCount += 1
+isTrueMo = mondayAt18 and mondayCount == 2
+isTrueYr = nyMonth == 4 and nyMonth[1] != 4
+
+isWO = f_isStart("1800-1801:1")
+isMO = is0000 and nyDay == 1
+isYO = is0000 and nyMonth == 1 and nyDay == 1
+
+// --- High/Low Tracking Logic ---
+var float pdh = na
+var float pdl = na
+var float pd_eq = na
+var float pwh = na
+var float pwl = na
+var float curDh = na
+var float curDl = na
+var float curWh = na
+var float curWl = na
+
+var int hodBar = na
+var int lodBar = na
+
+if na(curDh) or high > curDh
+    curDh := high
+    hodBar := bar_index
+if na(curDl) or low < curDl
+    curDl := low
+    lodBar := bar_index
+
+if na(curWh) or high > curWh
+    curWh := high
+if na(curWl) or low < curWl
+    curWl := low
+
+if is1800
+    pdh := curDh
+    pdl := curDl
+    pd_eq := (curDh + curDl) / 2.0
+    curDh := high
+    curDl := low
+    hodBar := bar_index
+    lodBar := bar_index
+
+if isTrueWk
+    pwh := curWh
+    pwl := curWl
+    curWh := high
+    curWl := low
+    
+bool tfIs5mOrHigher = timeframe.in_seconds() >= 300
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// DEVIL'S MARK LOGIC
+// ═══════════════════════════════════════════════════════════════════════════════════
+[o_tf, h_tf, l_tf] = request.security(syminfo.tickerid, i_tf, [open, high, low], lookahead = barmerge.lookahead_on)
+int htfTimeChange = ta.change(time(i_tf))
+bool openCondition = i_showHTF and (o_tf == h_tf or o_tf == l_tf) and timeframe.in_seconds() < timeframe.in_seconds(i_tf) and htfTimeChange != 0
+bool currentCondition = i_showCurrent and (open == high or open == low)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// RENDERING: TRUE OPENS, PD-H/PD-L, HOD/LOD, PD-EQ
+// ═══════════════════════════════════════════════════════════════════════════════════
+var array<line>  nyamLn   = array.new<line>()
+var array<label> nyamLb   = array.new<label>()
+var array<line>  tmsoLn   = array.new<line>()
+var array<label> tmsoLb   = array.new<label>()
+var array<line>  doLn     = array.new<line>()
+var array<label> doLb     = array.new<label>()
+var array<line>  dayLn    = array.new<line>()
+var array<label> dayLb    = array.new<label>()
+var array<line>  wkLn     = array.new<line>()
+var array<label> wkLb     = array.new<label>()
+var array<line>  woLn     = array.new<line>()
+var array<label> woLb     = array.new<label>()
+var array<line>  moLn     = array.new<line>()
+var array<label> moLb     = array.new<label>()
+var array<line>  yoLn     = array.new<line>()
+var array<label> yoLb     = array.new<label>()
+var array<line>  yrLn     = array.new<line>()
+var array<label> yrLb     = array.new<label>()
+
+var array<line>  pdhLn    = array.new<line>()
+var array<label> pdhLb    = array.new<label>()
+var array<line>  pdlLn    = array.new<line>()
+var array<label> pdlLb    = array.new<label>()
+var array<line>  pdEqLn   = array.new<line>()
+var array<label> pdEqLb   = array.new<label>()
+
+var array<line>  pwhLn    = array.new<line>()
+var array<label> pwhLb    = array.new<label>()
+var array<line>  pwlLn    = array.new<line>()
+var array<label> pwlLb    = array.new<label>()
+var array<line>  hodLn    = array.new<line>()
+var array<label> hodLb    = array.new<label>()
+var array<line>  lodLn    = array.new<line>()
+var array<label> lodLb    = array.new<label>()
+
+f_create(array<line> lns, array<label> lbs, float price, color col, string txt, string tip, color txtCol = na, string lnSt = "global", string lblSz = "small", int lnW = 1) =>
+    cText   = na(txtCol) ? col : txtCol
+    cStyle  = lnSt == "pdhpwl" ? pdLnStyl : (lnSt == "pdeq" ? pdEqLnStyl : (lnSt == "global" ? lineStyle : (lnSt == "dotted" ? line.style_dotted : (lnSt == "dashed" ? line.style_dashed : line.style_solid))))
+    cSize   = lblSz == "normal" ? size.normal : (lblSz == "tiny" ? size.tiny : size.small)
+    padTxt  = " " + txt + " "
+    
+    ln = line.new(bar_index, price, bar_index + math.max(labelGap, 1), price, color = col, width = lnW, style = cStyle, extend = extend.none)
+    array.push(lns, ln)
+    if opensShowLabels
+        lb = label.new(bar_index, price, padTxt, color = color.new(color.black, 100), textcolor = cText, style = label.style_label_left, size = cSize, tooltip = tip, textalign = text.align_left)
+        array.push(lbs, lb)
+    
+    int maxKeep = opensShowHistory ? 50 : 1
+    while array.size(lns) > maxKeep
+        line.delete(array.shift(lns))
+    while array.size(lbs) > maxKeep
+        label.delete(array.shift(lbs))
+
+f_extend(array<line> lns, array<label> lbs) =>
+    int lastIdx = array.size(lns) > 0 ? array.size(lns) - 1 : -1
+    if lastIdx >= 0
+        line l = array.get(lns, lastIdx)
+        if bar_index > line.get_x2(l)
+            line.set_x2(l, bar_index)
+    if lastIdx >= 0 and array.size(lbs) > 0
+        label.set_x(array.get(lbs, lastIdx), bar_index + labelGap)
+
+tipNYAM   = "TRUE SESSION OPEN (TNY)\nDaye Quarterly Theory — Q2 open of the NY AM session (07:30 NY). Extends to 18:00 NY."
+tipTMSO   = "TRUE MARKET SESSION OPEN (TMSO)\n9:30 AM NY regular market open. Extends to 18:00 NY."
+tipHOD    = "HIGH OF DAY (HOD)\nCurrent daily cycle high based on True Day Open (18:00 NY)."
+tipLOD    = "LOW OF DAY (LOD)\nCurrent daily cycle low based on True Day Open (18:00 NY)."
+tipDO     = "DAILY OPEN\n18:00 NY (Previous Day)"
+tipDay    = "TRUE DAY OPEN\n00:00 NY"
+tipWO     = "WEEK OPEN\nSunday 18:00 NY"
+tipMO     = "MONTH OPEN\n1st of the Month 00:00 NY"  
+tipYO     = "YEAR OPEN\nJanuary 1st 00:00 NY"
+tipWeek   = "TRUE WEEK OPEN\nDaye Quarterly Theory — Q2 open of the weekly cycle (Mon 18:00 NY)."
+tipMonth  = "TRUE MONTH OPEN\nDaye Quarterly Theory — Q2 open of the monthly cycle (2nd Monday 18:00 NY)."
+tipYear   = "TRUE YEAR OPEN\nDaye Quarterly Theory — Q2 open of the yearly cycle (April 1, 00:00 NY).\nYear quarters: Q1 Jan-Mar, Q2 Apr-Jun, Q3 Jul-Sep, Q4 Oct-Dec."
+tipPDH    = "PREVIOUS DAY HIGH (PD-H)\nBased on the True Day Open (18:00 NY) cycle."
+tipPDL    = "PREVIOUS DAY LOW (PD-L)\nBased on the True Day Open (18:00 NY) cycle."
+tipPDEQ   = "PREVIOUS DAY EQUILIBRIUM (PD-EQ)\n50% midpoint of PD-H and PD-L."
+tipPWH    = "PREVIOUS WEEK HIGH (PWH)\nBased on the True Week Open (Mon 18:00 NY) cycle."
+tipPWL    = "PREVIOUS WEEK LOW (PWL)\nBased on the True Week Open (Mon 18:00 NY) cycle."
+
+if showSessions and isNYAM
+    f_create(nyamLn, nyamLb, open, sessionColor, "TNY", tipNYAM, sessionColor, "dotted", "small", lineWidthIn)
+if showTMSO and is930
+    f_create(tmsoLn, tmsoLb, open, sessionColor, "TMSO", tipTMSO, sessionColor, "dotted", "small", lineWidthIn)
+
+if showDO and isDO
+    f_create(doLn,   doLb,   open, doColor,      "DO",         tipDO,   opensTextColor, "global", "small", lineWidthIn)
+if showDay and isTrueDay
+    f_create(dayLn,  dayLb,  open, dayColor,     "TDO",        tipDay,  opensTextColor, "global", "small", lineWidthIn)
+if showWO and isWO
+    f_create(woLn,   woLb,   open, woColor,      "WO",         tipWO,   opensTextColor, "global", "small", lineWidthIn)
+if showWeek and isTrueWk
+    f_create(wkLn,   wkLb,   open, weekColor,    "TWO",        tipWeek, opensTextColor, "global", "small", lineWidthIn)
+if showMO and isMO
+    f_create(moLn,   moLb,   open, moColor,      "MO",         tipMO,   opensTextColor, "global", "small", lineWidthIn)
+if showMonth and isTrueMo
+    f_create(moLn,   moLb,   open, monthColor,   "TMO",        tipMonth,opensTextColor, "global", "small", lineWidthIn)
+if showYO and isYO
+    f_create(yoLn,   yoLb,   open, yoColor,      "YO",         tipYO,   opensTextColor, "global", "small", lineWidthIn)
+if showYear and isTrueYr
+    f_create(yrLn,   yrLb,   open, yearColor,    "TYO",        tipYear, opensTextColor, "global", "small", lineWidthIn)
+
+if showHOD_LOD and is1800
+    f_create(hodLn, hodLb, high, hodLodColor, "HOD", tipHOD, hodLodTxtCol, "solid", "normal", hodLodWidth)
+    f_create(lodLn, lodLb, low, hodLodColor, "LOD", tipLOD, hodLodTxtCol, "solid", "normal", hodLodWidth)
+
+if showPDH_PDL and is1800 and not na(pdh)
+    f_create(pdhLn, pdhLb, pdh, pdColor, "PD-H", tipPDH, pdTextColor, "pdhpwl", "normal", pdWidth)
+if showPDH_PDL and is1800 and not na(pdl)
+    f_create(pdlLn, pdlLb, pdl, pdColor, "PD-L", tipPDL, pdTextColor, "pdhpwl", "normal", pdWidth)
+
+if showPDH_PDL and is1800 and not na(pd_eq)
+    f_create(pdEqLn, pdEqLb, pd_eq, pdEqColor, "PD-EQ", tipPDEQ, pdEqTxtCol, "pdeq", "normal", pdEqWidth)
+
+if showPWH_PWL and isTrueWk and tfIs5mOrHigher and not na(pwh)
+    f_create(pwhLn, pwhLb, pwh, pwhPwlColor, "PWH", tipPWH, pwhPwlTxtCol, "dotted", "normal", 2)
+if showPWH_PWL and isTrueWk and tfIs5mOrHigher and not na(pwl)
+    f_create(pwlLn, pwlLb, pwl, pwhPwlColor, "PWL", tipPWL, pwhPwlTxtCol, "dotted", "normal", 2)
+
+// ─── Extension Logic for TNY/TMSO ───
+var bool tnyCycleActive = false
+var bool tmsoCycleActive = false
+
+if isNYAM
+    tnyCycleActive := true
+if is930
+    tmsoCycleActive := true
+
+if tnyCycleActive and showSessions
+    f_extend(nyamLn, nyamLb)
+    
+if tmsoCycleActive and showTMSO
+    f_extend(tmsoLn, tmsoLb)
+
+// ─── Hide TNY/TMSO at Day End (18:00 NY) ───
+if is1800
+    while array.size(nyamLn) > 0
+        line.delete(array.shift(nyamLn))
+    while array.size(nyamLb) > 0
+        label.delete(array.shift(nyamLb))
+    while array.size(tmsoLn) > 0
+        line.delete(array.shift(tmsoLn))
+    while array.size(tmsoLb) > 0
+        label.delete(array.shift(tmsoLb))
+    tnyCycleActive := false
+    tmsoCycleActive := false
+
+// Standard Extensions for other opens
+f_extend(doLn,       doLb)
+f_extend(dayLn,      dayLb)
+f_extend(woLn,       woLb)       
+f_extend(wkLn,       wkLb)
+f_extend(moLn,       moLb)       
+f_extend(yrLn,       yrLb)
+f_extend(yoLn,       yoLb)       
+
+f_extend(pdhLn,      pdhLb)
+f_extend(pdlLn,      pdlLb)
+f_extend(pdEqLn,     pdEqLb)
+f_extend(pwhLn,      pwhLb)
+f_extend(pwlLn,      pwlLb)
+
+// Dynamic HOD/LOD Update
+if showHOD_LOD and array.size(hodLn) > 0
+    int lastIdx = array.size(hodLn) - 1
+    line lH = array.get(hodLn, lastIdx)
+    line.set_x1(lH, hodBar)
+    line.set_y1(lH, curDh)
+    line.set_y2(lH, curDh)
+    if bar_index > line.get_x2(lH)
+        line.set_x2(lH, bar_index)
+    if array.size(hodLb) > 0
+        label.set_xy(array.get(hodLb, lastIdx), bar_index + labelGap, curDh)
+        
+    int lastIdxL = array.size(lodLn) - 1
+    line lL = array.get(lodLn, lastIdxL)
+    line.set_x1(lL, lodBar)
+    line.set_y1(lL, curDl)
+    line.set_y2(lL, curDl)
+    if bar_index > line.get_x2(lL)
+        line.set_x2(lL, bar_index)
+    if array.size(lodLb) > 0
+        label.set_xy(array.get(lodLb, lastIdxL), bar_index + labelGap, curDl)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// RENDERING: DEVIL'S MARK
+// ═══════════════════════════════════════════════════════════════════════════════════
+var line[]  activeLines  = array.new_line()
+var label[] activeLabels = array.new_label()
+var int[]   activeTypes  = array.new_int()
+
+if openCondition or currentCondition
+    float price     = openCondition ? o_tf : open
+    color lineColor = openCondition ? (o_tf == h_tf ? i_openHighColor : i_openLowColor) : (open == high ? i_currentOpenHighColor : i_currentOpenLowColor)
+    int length      = openCondition ? i_lineLength : i_currentLineLength
+    int dmWidth     = openCondition ? i_hLineWidth : i_currentLineWidth
+    
+    line newLine = line.new(x1 = bar_index, y1 = price, x2 = bar_index + length, y2 = price, color = lineColor, style = line.style_solid, width = dmWidth)
+    array.push(activeLines, newLine)
+    
+    int dmType = openCondition ? (o_tf == l_tf ? 1 : -1) : (open == low ? 1 : -1)
+    array.push(activeTypes, dmType)
+
+    string dmLabelText = openCondition ? i_emojiLabel : i_currentEmojiLabel
+    string formattedTime = str.format_time(time, "yyyy-MM-dd HH:mm", syminfo.timezone)
+    
+    string dmTooltip = ""
+    if openCondition
+        string dmTypeStr = o_tf == h_tf ? "Bearish (Open == High)" : "Bullish (Open == Low)"
+        dmTooltip := "=== DEVIL'S MARK (HTF) ===" + "\nTimeframe: " + i_tf + "\nType: " + dmTypeStr + "\nOpen Price: " + str.tostring(price, format.mintick) + "\nBar Time: " + formattedTime
+    else if currentCondition
+        string dmTypeStr = open == high ? "Bearish (Open == High)" : "Bullish (Open == Low)"
+        dmTooltip := "=== DEVIL'S MARK (CTF) ===" + "\nTimeframe: " + timeframe.period + "\nType: " + dmTypeStr + "\nOpen Price: " + str.tostring(price, format.mintick) + "\nBar Time: " + formattedTime
+
+    label newLabel = label.new(x = bar_index + length, y = price, text = dmLabelText, yloc = yloc.price, style = label.style_none, textcolor = lineColor, size = size.normal, tooltip = dmTooltip)
+    array.push(activeLabels, newLabel)
+
+if array.size(activeLines) > 0
+    for i = array.size(activeLines) - 1 to 0 by 1
+        line currentLine = array.get(activeLines, i)
+        label currentLabel = array.get(activeLabels, i)
+        int currentType = array.get(activeTypes, i)
+        
+        bool shouldDelete = false
+
+        if na(currentLine)
+            shouldDelete := true
+        else if bar_index >= line.get_x1(currentLine)
+            float lineY = line.get_y1(currentLine)
+            
+            if currentType == -1
+                if high > lineY or close > lineY
+                    shouldDelete := true
+            else if currentType == 1
+                if low < lineY or close < lineY
+                    shouldDelete := true
+        
+        if shouldDelete
+            if not opensShowHistory 
+                line.delete(currentLine)
+                label.delete(currentLabel)
+            array.remove(activeLines, i)
+            array.remove(activeLabels, i)
+            array.remove(activeTypes, i)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// ICT SESSION BOXES & PIVOTS LOGIC
+// ═══════════════════════════════════════════════════════════════════════════════════
+getLineStyle(string s) =>
+    switch s
+        "Solid"  => line.style_solid
+        "Dashed" => line.style_dashed
+        "Dotted" => line.style_dotted
+        => line.style_solid
+
+var pvStyle = getLineStyle(pivotStyleInput)
+bool kzTfAllowed = timeframe.in_seconds() >= timeframe.in_seconds(kzMinTfInput) and timeframe.in_seconds() <= timeframe.in_seconds(kzMaxTfInput)
+
+type SessionData
+    string name
+    string session
+    color  col
+    string hiLabel
+    string loLabel
+    array<box>   boxes
+    array<line>  hiLines
+    array<line>  loLines
+    array<label> hiLabels
+    array<label> loLabels
+    array<bool>  hiValid
+    array<bool>  loValid
+
+initSession(string nm, string sess, color c, string hiLbl, string loLbl) =>
+    SessionData.new(nm, sess, c, hiLbl, loLbl, array.new_box(), array.new_line(), array.new_line(), array.new_label(), array.new_label(), array.new_bool(), array.new_bool())
+
+var array<SessionData> sessions = array.new<SessionData>()
+if barstate.isfirst
+    if useAsiaInput
+        sessions.push(initSession(asiaNameInput, asiaSessionInput, asiaColorInput, asiaHiLblInput, asiaLoLblInput))
+    if useLondonInput
+        sessions.push(initSession(londonNameInput, londonSessionInput, londonColorInput, londonHiLblInput, londonLoLblInput))
+    if useNyAmInput
+        sessions.push(initSession(nyAmNameInput, nyAmSessionInput, nyAmColorInput, nyAmHiLblInput, nyAmLoLblInput))
+    if useNyLunchInput
+        sessions.push(initSession(nyLunchNameInput, nyLunchSessionInput, nyLunchColorInput, nyLunchHiLblInput, nyLunchLoLblInput))
+    if useNyPmInput
+        sessions.push(initSession(nyPmNameInput, nyPmSessionInput, nyPmColorInput, nyPmHiLblInput, nyPmLoLblInput))
+
+// ─── Precompute session statuses OUTSIDE the loop ───
+bool asiaIn    = not na(time("", asiaSessionInput,    "America/New_York"))
+bool asiaWas   = not na(time("", asiaSessionInput,    "America/New_York")[1])
+bool londonIn  = not na(time("", londonSessionInput,  "America/New_York"))
+bool londonWas = not na(time("", londonSessionInput,  "America/New_York")[1])
+bool nyAmIn    = not na(time("", nyAmSessionInput,    "America/New_York"))
+bool nyAmWas   = not na(time("", nyAmSessionInput,    "America/New_York")[1])
+bool nyLunchIn = not na(time("", nyLunchSessionInput, "America/New_York"))
+bool nyLunchWas= not na(time("", nyLunchSessionInput, "America/New_York")[1])
+bool nyPmIn    = not na(time("", nyPmSessionInput,    "America/New_York"))
+bool nyPmWas   = not na(time("", nyPmSessionInput,    "America/New_York")[1])
+
+bool isConfirmedCache = barstate.isconfirmed
+
+if showKzInput and kzTfAllowed
+    for i = 0 to (sessions.size() > 0 ? sessions.size() - 1 : na)
+        SessionData sd = sessions.get(i)
+
+        // ─── Lookup precomputed values by session string ───
+        bool inSess    = sd.session == asiaSessionInput    ? asiaIn    :
+                         sd.session == londonSessionInput  ? londonIn  :
+                         sd.session == nyAmSessionInput    ? nyAmIn    :
+                         sd.session == nyLunchSessionInput ? nyLunchIn : nyPmIn
+        bool wasInSess = sd.session == asiaSessionInput    ? asiaWas    :
+                         sd.session == londonSessionInput  ? londonWas  :
+                         sd.session == nyAmSessionInput    ? nyAmWas    :
+                         sd.session == nyLunchSessionInput ? nyLunchWas : nyPmWas
+        bool sessStart = inSess and not wasInSess
+
+        if sessStart
+            color boxCol  = color.new(sd.col, boxTranspInput)
+            color textCol = color.new(sd.col, math.max(boxTranspInput - 30, 0))
+
+            if showKzBoxesInput
+                sd.boxes.unshift(box.new(time, high, time, low, xloc = xloc.bar_time, border_color = boxCol, bgcolor = boxCol, text = showKzTextInput ? sd.name : na, text_color = textCol, text_size = size.small, text_halign = text.align_left, text_valign = text.align_top))
+
+            if showPivotsInput
+                sd.hiLines.unshift(line.new(time, high, time, high, xloc = xloc.bar_time, style = pvStyle, color = sd.col, width = pivotWidthInput))
+                sd.loLines.unshift(line.new(time, low, time, low, xloc = xloc.bar_time, style = pvStyle, color = sd.col, width = pivotWidthInput))
+                sd.hiValid.unshift(true)
+                sd.loValid.unshift(true)
+
+                if showPivotLabelsInput
+                    string hiTxt = showPivotPriceInput ? sd.hiLabel + " (" + str.tostring(high, format.mintick) + ")" : sd.hiLabel
+                    string loTxt = showPivotPriceInput ? sd.loLabel + " (" + str.tostring(low, format.mintick) + ")" : sd.loLabel
+                    sd.hiLabels.unshift(label.new(time, high, hiTxt, xloc = xloc.bar_time, color = color.new(color.black, 100), textcolor = color.white, style = label.style_label_left, size = size.small))
+                    sd.loLabels.unshift(label.new(time, low, loTxt, xloc = xloc.bar_time, color = color.new(color.black, 100), textcolor = color.white, style = label.style_label_left, size = size.small))
+
+            if sd.boxes.size() > maxSessionsInput
+                sd.boxes.pop().delete()
+            if sd.hiLines.size() > maxSessionsInput
+                sd.hiLines.pop().delete()
+                sd.loLines.pop().delete()
+                sd.hiValid.pop()
+                sd.loValid.pop()
+            if sd.hiLabels.size() > maxSessionsInput
+                sd.hiLabels.pop().delete()
+                sd.loLabels.pop().delete()
+
+        if inSess and sd.boxes.size() > 0
+            box b = sd.boxes.get(0)
+            b.set_right(time)
+            float newTop = math.max(b.get_top(), high)
+            float newBot = math.min(b.get_bottom(), low)
+            b.set_top(newTop)
+            b.set_bottom(newBot)
+
+            if showPivotsInput and sd.hiLines.size() > 0
+                line hl = sd.hiLines.get(0)
+                line ll = sd.loLines.get(0)
+                hl.set_x2(time)
+                ll.set_x2(time)
+                if high > hl.get_y1()
+                    hl.set_xy1(time, high)
+                    hl.set_xy2(time, high)
+                if low < ll.get_y1()
+                    ll.set_xy1(time, low)
+                    ll.set_xy2(time, low)
+                
+                if showPivotLabelsInput and sd.hiLabels.size() > 0
+                    sd.hiLabels.get(0).set_x(time)
+                    sd.loLabels.get(0).set_x(time)
+                    if high > sd.hiLabels.get(0).get_y()
+                        sd.hiLabels.get(0).set_y(high)
+                        if showPivotPriceInput
+                            sd.hiLabels.get(0).set_text(sd.hiLabel + " (" + str.tostring(high, format.mintick) + ")")
+                    if low < sd.loLabels.get(0).get_y()
+                        sd.loLabels.get(0).set_y(low)
+                        if showPivotPriceInput
+                            sd.loLabels.get(0).set_text(sd.loLabel + " (" + str.tostring(low, format.mintick) + ")")
+
+        if not inSess and showPivotsInput and sd.hiLines.size() > 0
+            bool extendPast = pivotExtendInput == "Always"
+            line hl = sd.hiLines.get(0)
+            line ll = sd.loLines.get(0)
+            bool hiOk = sd.hiValid.get(0)
+            bool loOk = sd.loValid.get(0)
+
+            if extendPast or hiOk
+                hl.set_x2(time)
+                if showPivotLabelsInput and sd.hiLabels.size() > 0
+                    sd.hiLabels.get(0).set_x(time)
+            if extendPast or loOk
+                ll.set_x2(time)
+                if showPivotLabelsInput and sd.loLabels.size() > 0
+                    sd.loLabels.get(0).set_x(time)
+
+            float hiLevel = hl.get_y1()
+            if hiOk and high > hiLevel and isConfirmedCache
+                if close > hiLevel
+                    sd.hiValid.set(0, false)
+
+            float loLevel = ll.get_y1()
+            if loOk and low < loLevel and isConfirmedCache
+                if close < loLevel
+                    sd.loValid.set(0, false)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// OpenSourceFractal LOGIC & PLOT
+// ═══════════════════════════════════════════════════════════════════════════════════
+var float o0 = open
+var float h0 = high
+var float l0 = low
+var float o1 = open
+var float h1 = high
+var float l1 = low
+
+if periodChanged
+    o1 := o0[1]
+    h1 := h0[1]
+    l1 := l0[1]
+    o0 := open
+    h0 := high
+    l0 := low
+
+if high >= h0
+    h0 := high
+if low <= l0
+    l0 := low
+
+bool up = close > open
+bool dw = close < open
+bool eq = close == open
+
+var float bullLevelFixed = na
+var int   bullIndexFixed = na
+var float bearLevelFixed = na
+var int   bearIndexFixed = na
+
+if low == l0 and low < l1
+    if (dw[0] or eq[0]) and (up[1] or eq[1]) and not (eq[0] and eq[1])
+        bullLevelFixed := open
+        bullIndexFixed := bar_index
+    else
+        for i = 2 to 10
+            if low[i] < low
+                break
+            if (up[i] or eq[i]) and dw[i - 1]
+                b = i - 1
+                bullLevelFixed := open[b]
+                bullIndexFixed := bar_index - b
+                for j = b to 0
+                    if open[j] > bullLevelFixed and dw[j]
+                        bullLevelFixed := open[j]
+                        bullIndexFixed := bar_index - j
+                if bullLevelFixed < open
+                    bullLevelFixed := close > open ? high : open
+                    bullIndexFixed := bar_index
+                break
+
+if high == h0 and high > h1
+    if (up[0] or eq[0]) and (dw[1] or eq[1]) and not (eq[0] and eq[1])
+        bearLevelFixed := open
+        bearIndexFixed := bar_index
+    else
+        for i = 2 to 10
+            if high[i] > high
+                break
+            if (dw[i] or eq[i]) and up[i - 1]
+                yb = i - 1
+                bearLevelFixed := open[yb]
+                bearIndexFixed := bar_index - yb
+                for j = yb to 0
+                    if open[j] < bearLevelFixed and up[j]
+                        bearLevelFixed := open[j]
+                        bearIndexFixed := bar_index - j
+                if bearLevelFixed > open
+                    bearLevelFixed := close < open ? low : open
+                    bearIndexFixed := bar_index
+                break
+
+var bool bullReclaimed  = false
+var int  bullReclaimBar = na
+var bool bearReclaimed  = false
+var int  bearReclaimBar = na
+
+bullPeriodSweep = l0 < l1
+bearPeriodSweep = h0 > h1
+
+newBullLevel = not na(bullIndexFixed) and (na(bullIndexFixed[1]) or bullIndexFixed != bullIndexFixed[1])
+if newBullLevel
+    bullReclaimed  := false
+    bullReclaimBar := na
+if not na(bullLevelFixed) and not bullReclaimed and close > bullLevelFixed
+    bullReclaimed  := true
+    bullReclaimBar := bar_index
+    if bullPeriodSweep
+        drawEarlyCisd(true, bullLevelFixed, bullIndexFixed, bar_index)
+
+newBearLevel = not na(bearIndexFixed) and (na(bearIndexFixed[1]) or bearIndexFixed != bearIndexFixed[1])
+if newBearLevel
+    bearReclaimed  := false
+    bearReclaimBar := na
+if not na(bearLevelFixed) and not bearReclaimed and close < bearLevelFixed
+    bearReclaimed  := true
+    bearReclaimBar := bar_index
+    if bearPeriodSweep
+        drawEarlyCisd(false, bearLevelFixed, bearIndexFixed, bar_index)
+
+candleOffset = fr_candleOffsetIn + 10
+
+if periodChanged
+    if htfCandles.size() > 0
+        newest             = htfCandles.first()
+        state.prevHigh    := newest.h
+        state.prevLow     := newest.l
+        state.prevHighBar := newest.hBar
+        state.prevLowBar  := newest.lBar
+    if htfCandles.size() > 1
+        prior                  = htfCandles.get(1)
+        state.prevPrevHigh    := prior.h
+        state.prevPrevLow     := prior.l
+        state.prevPrevHighBar := prior.hBar
+        state.prevPrevLowBar  := prior.lBar
+    htfCandles.unshift(newHtfCandle())
+    while htfCandles.size() > fr_htfCandleCount
+        htfCandles.pop().delete()
+    htfOpenBar := bar_index
+    if fr_showLH
+        if hLines.size() > 0
+            line.set_x2(hLines.first(), bar_index)
+            line.set_x2(lLines.first(), bar_index)
+        hLines.unshift(newLHLine(high))
+        lLines.unshift(newLHLine(low))
+        while hLines.size() > fr_htfCandleCount
+            line.delete(hLines.pop())
+        while lLines.size() > fr_htfCandleCount
+            line.delete(lLines.pop())
+else if htfCandles.size() > 0
+    htfCandles.set(0, htfCandles.first().update(high, low, close, bar_index))
+
+if fr_showLH and htfCandles.size() > 0 and hLines.size() > 0
+    curCandle = htfCandles.first()
+    updateLHLine(hLines.first(), curCandle.h)
+    updateLHLine(lLines.first(), curCandle.l)
+
+if periodChanged
+    state.prevC2Buy  := c2Buy[1]
+    state.prevC2Sell := c2Sell[1]
+
+c2BuyTrigger  = periodChanged and state.prevC2Buy
+c2SellTrigger = periodChanged and state.prevC2Sell
+
+if c2BuyTrigger and fr_allowBuy and bullReclaimed[1]
+    consumeLastEarlyCisd(bullEarlyCisdRecords)
+
+if c2SellTrigger and fr_allowSell and bearReclaimed[1]
+    consumeLastEarlyCisd(bearEarlyCisdRecords)
+
+buySetup  := processC2(c2BuyTrigger, fr_allowBuy, true, state.prevLow, state.prevLowBar, state.prevPrevLow, state.prevPrevLowBar, bullLevelFixed[1], bullIndexFixed[1], bullReclaimed[1], bullReclaimBar[1], buySetup)
+sellSetup := processC2(c2SellTrigger, fr_allowSell, false, state.prevHigh, state.prevHighBar, state.prevPrevHigh, state.prevPrevHighBar, bearLevelFixed[1], bearIndexFixed[1], bearReclaimed[1], bearReclaimBar[1], sellSetup)
+
+markTrigger(c2BuyTrigger, fr_allowBuy, 2, true)
+markTrigger(c2SellTrigger, fr_allowSell, 2, false)
+
+buySetup  := buySetup.extendAndCheck()
+sellSetup := sellSetup.extendAndCheck()
+
+buySetup  := buySetup.checkC4Invalid()
+sellSetup := sellSetup.checkC4Invalid()
+
+buySetup  := buySetup.checkCisdConfirm()
+sellSetup := sellSetup.checkCisdConfirm()
+
+if fr_showAlerts
+    if c2BuyTrigger and fr_allowBuy
+        alert('Bullish C2 formed on ' + syminfo.ticker, alert.freq_once_per_bar)
+    if c2SellTrigger and fr_allowSell
+        alert('Bearish C2 formed on ' + syminfo.ticker, alert.freq_once_per_bar)
+
+if fr_showVlines and periodChanged
+    vLines.unshift(line.new(bar_index, low - ta.tr, bar_index, high + ta.tr, xloc.bar_index, extend.both, fr_lineColor, lineStyleFromStr(fr_lineStyle), fr_lineWidth))
+    while vLines.size() > fr_htfCandleCount
+        line.delete(vLines.pop())
+
+if (barstate.islast or barstate.isrealtime) and validTf and htfCandles.size() > 0 and not fr_hideHtf
+    n = htfCandles.size()
+    for i = n - 1 to 0
+        htfCandles.get(i).draw(bar_index + candleOffset + fr_candleSpacing * (n - 1 - i))
+    if fr_showHtfOpen and not na(htfOpenBar)
+        curOpenX2 = box.get_right(htfCandles.first().body)
+        if na(htfOpenLn)
+            htfOpenLn := line.new(htfOpenBar, currentO, curOpenX2, currentO, xloc.bar_index, extend.none, fr_htfOpenColor, lineStyleFromStr(fr_htfOpenStyle), fr_htfOpenWidth)
+        else
+            line.set_xy1(htfOpenLn, htfOpenBar, currentO)
+            line.set_xy2(htfOpenLn, curOpenX2, currentO)
+            line.set_color(htfOpenLn, fr_htfOpenColor)
+            line.set_style(htfOpenLn, lineStyleFromStr(fr_htfOpenStyle))
+            line.set_width(htfOpenLn, fr_htfOpenWidth)
+    for i = n - 1 to 0
+        c = htfCandles.get(i)
+        if i > 0
+            nextC = htfCandles.get(i - 1)
+            line.set_x2(c.eqLine, nextC.midX)
+        if fr_showSweep and (c.triggerBuy or c.triggerSell) and i > 0
+            nextC = htfCandles.get(i - 1)
+            price = c.triggerBuy ? c.l : c.h
+            if na(c.sweepLine)
+                c.sweepLine := line.new(c.midX, price, nextC.midX, price, color = fr_sweepColor, style = lineStyleFromStr(fr_sweepStyle), width = fr_sweepWidth)
+            else
+                line.set_xy1(c.sweepLine, c.midX, price)
+                line.set_xy2(c.sweepLine, nextC.midX, price)
+                line.set_color(c.sweepLine, fr_sweepColor)
+                line.set_style(c.sweepLine, lineStyleFromStr(fr_sweepStyle))
+                line.set_width(c.sweepLine, fr_sweepWidth)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// Modern Dashboard
+// ═══════════════════════════════════════════════════════════════════════════════════
+if barstate.islast and fr_boolTable
+    var table wm = table.new(tablePosition(fr_tableVert, fr_tableHorz), 1, 4,
+         bgcolor      = fr_dashBgColor,
+         border_color = color.new(#2a2e39, 0),
+         border_width = 1,
+         frame_color  = color.new(#2a2e39, 0),
+         frame_width  = 1)
+
+    ltfDisp = tfLabel(ltfCode())
+    htfDisp = tfLabel(autoTf)
+
+    // Header
+    table.cell(wm, 0, 0, 'LARPER LINES', text_color = color.white, bgcolor = fr_dashAccentColor, text_size = size.normal, text_halign = text.align_center, text_font_family = font.family_default)
+
+    // Info
+    string alignStr = 'Alignment: ' + ltfDisp + ' - ' + htfDisp
+    string biasStr  = 'Bias: ' + fr_biasFilter
+    table.cell(wm, 0, 1, alignStr, text_color = color.new(#787b86, 0), bgcolor = fr_dashBgColor, text_size = size.small, text_halign = text.align_center, text_font_family = font.family_default)
+    table.cell(wm, 0, 2, biasStr, text_color = fr_dashTextColor, bgcolor = fr_dashBgColor, text_size = size.small, text_halign = text.align_center, text_font_family = font.family_default)
+
+    dateStr     = str.format_time(time_close, 'dd MMM yyyy', syminfo.timezone)
+    pairDateStr = syminfo.ticker + '  |  ' + dateStr
+    if not validTf
+        curTfStr = tfLabel(curTfCode())
+        warnMsg  = '⚠ Switch to ' + ltfDisp + ' or lower (now: ' + curTfStr + ')'
+        table.cell(wm, 0, 3, warnMsg, text_color = color.white, bgcolor = color.new(#cc0000, 0), text_size = size.small, text_halign = text.align_center, text_font_family = font.family_default)
+    else
+        table.cell(wm, 0, 3, pairDateStr, text_color = fr_dashTextColor, bgcolor = fr_dashBgColor, text_size = size.small, text_halign = text.align_center, text_font_family = font.family_default)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// Alerts
+// ═══════════════════════════════════════════════════════════════════════════════════
+alertcondition(currentCondition and open == high, title="Devil's Mark CTF Bearish (O=H)", message="Devil's Mark CTF Bearish detected")
+alertcondition(currentCondition and open == low,  title="Devil's Mark CTF Bullish (O=L)", message="Devil's Mark CTF Bullish detected")
+alertcondition(openCondition and o_tf == h_tf,    title="Devil's Mark HTF Bearish (O=H)", message="Devil's Mark HTF Bearish detected")
+alertcondition(openCondition and o_tf == l_tf,    title="Devil's Mark HTF Bullish (O=L)", message="Devil's Mark HTF Bullish detected")
+alertcondition(currentCondition or openCondition, title="Any Devil's Mark",               message="Devil's Mark detected")
