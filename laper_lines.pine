@@ -153,6 +153,53 @@ i_emojiLabel = input.string("DM", "HTF Mark Text", options = ["DM", "O=H", "O=L"
 i_hLineWidth = input.int(2, "HTF Line Width", minval=1, maxval=5, group = gDM)
 
 // ═══════════════════════════════════════════════════════════════════════════════════
+// SMT Divergence Settings
+// ═══════════════════════════════════════════════════════════════════════════════════
+grpSmt                = "─── SMT Divergence ───"
+smt_show_input        = input.bool(true, 'Enable SMT?', inline='smt_enable', group=grpSmt)
+smt_alerts_input      = input.bool(true, 'Alerts?', inline='smt_enable', group=grpSmt)
+smt_label_show_input  = input.bool(true, 'Labels?', inline='smt_labels', group=grpSmt, active = smt_show_input)
+smt_label_size_input  = input.string('Small', '', options=['Tiny', 'Small', 'Normal', 'Large'], inline='smt_labels', group=grpSmt, active = smt_show_input and smt_label_show_input)
+smt_line_style_input  = input.string('Solid', '', options=['Solid', 'Dashed', 'Dotted'], inline='smt_style', group=grpSmt, active = smt_show_input)
+smt_line_width_input  = input.int(1, 'Width', options=[1, 2, 3, 4], inline='smt_style', group=grpSmt, active = smt_show_input)
+smt_color_input       = input.color(color.rgb(156, 39, 176), '', inline='smt_color', group=grpSmt, active = smt_show_input)
+smt_mode_input        = input.string('Automatic', 'SMT Mode', options=['Automatic', 'Manual'], inline='smt_mode', group=grpSmt, active = smt_show_input)
+smt_show_mode_input   = input.string('Setup Only', 'Show SMT', options=['All SMT', 'Setup Only'], inline='smt_show', group=grpSmt, active = smt_show_input)
+smt_sym2_enable_input = input.bool(true, 'Enable Second SMT?', inline='smt_mode', group=grpSmt, active = smt_show_input)
+smt_sym1_manual_input = input.symbol('CME_MINI:ES1!', '1.', inline='smt_sym1', group=grpSmt, active = smt_show_input and smt_mode_input == 'Manual')
+smt_sym1_inverse_input= input.bool(false, 'Inverse ?', inline='smt_sym1', group=grpSmt, active = smt_show_input and smt_mode_input == 'Manual')
+smt_sym2_manual_input = input.symbol('CME_MINI:NQ1!', '2.', inline='smt_sym2', group=grpSmt, active = smt_show_input and smt_mode_input == 'Manual' and smt_sym2_enable_input)
+smt_sym2_inverse_input= input.bool(false, 'Inverse ?', inline='smt_sym2', group=grpSmt, active = smt_show_input and smt_mode_input == 'Manual' and smt_sym2_enable_input)
+
+// SMT Symbol Resolution
+smt_sym1_resolved = smt_mode_input == 'Automatic' ? "CME_MINI:ES1!" : smt_sym1_manual_input
+smt_sym2_resolved = smt_mode_input == 'Automatic' ? "CME_MINI:NQ1!" : smt_sym2_manual_input
+smt_sym1_inverse  = smt_mode_input == 'Automatic' ? false : smt_sym1_inverse_input
+smt_sym2_inverse  = smt_mode_input == 'Automatic' ? false : smt_sym2_inverse_input
+
+// SMT Data Fetching
+[smt_sym1_h, smt_sym1_l] = request.security(smt_sym1_resolved, "", [high, low], lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true)
+[smt_sym2_h, smt_sym2_l] = request.security(smt_sym2_resolved, "", [high, low], lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true)
+
+smt_sym1_ticker = smt_sym1_resolved != "" ? syminfo.ticker(smt_sym1_resolved) : ""
+smt_sym2_ticker = smt_sym2_resolved != "" ? syminfo.ticker(smt_sym2_resolved) : ""
+
+// SMT Tracker Type
+type SMT_Tracker
+    float h
+    float l
+    int h_idx
+    int l_idx
+    float prev_h
+    float prev_l
+    int prev_h_idx
+    int prev_l_idx
+
+var SMT_Tracker smt_tracker1 = SMT_Tracker.new()
+var SMT_Tracker smt_tracker2 = SMT_Tracker.new()
+var SMT_Tracker smt_tracker_curr = SMT_Tracker.new()
+
+// ═══════════════════════════════════════════════════════════════════════════════════
 // Fractal General Settings 
 // ═══════════════════════════════════════════════════════════════════════════════════
 grpModel   = '─── Fractal General Settings ───'
@@ -297,6 +344,15 @@ type C2Setup
     float c4Top     = na
     float c4Bottom  = na
     bool  c4Invalid = false
+    // SMT data
+    bool   has_smt    = false
+    int    smt_x1     = na
+    int    smt_x2     = na
+    float  smt_y1     = na
+    float  smt_y2     = na
+    string smt_symbol = ""
+    line   smtLine    = na
+    label  smtLabel   = na
 
 type SetupRecord
     C2Setup setup
@@ -382,6 +438,13 @@ textSize(string s) =>
         'Normal' => size.normal
         'Large'  => size.large
         =>          size.huge
+
+smtLabelSize(string s) =>
+    switch s
+        'Tiny'   => size.tiny
+        'Normal' => size.normal
+        'Large'  => size.large
+        =>          size.small
 
 directionalLabel(int xBar, float yPrice, string txt, bool bullish) =>
     if q_hideFractals
@@ -487,7 +550,7 @@ newHtfCandle() =>
 drawEarlyCisd(bool isBull, float level, int idx, int confirmBar) =>
     array<EarlyCisdRecord> target = isBull ? bullEarlyCisdRecords : bearEarlyCisdRecords
     if fr_showEarlyCisd and not q_hideFractals
-        ln = line.new(idx, level, confirmBar + 3, level, color = fr_earlyCisdColor, style = lineStyleFromStr(fr_earlyCisdStyle), width = fr_earlyCisdWidth)
+        line ln = line.new(idx, level, confirmBar + 3, level, color = fr_earlyCisdColor, style = lineStyleFromStr(fr_earlyCisdStyle), width = fr_earlyCisdWidth)
         label lbl = na
         if fr_showLabels
             lbl := label.new(confirmBar + 3, level, isBull ? '+CISD' : '-CISD', xloc = xloc.bar_index, style = label.style_label_left, color = na, textcolor = fr_earlyCisdColor, size = textSize(fr_labelSize), text_font_family = font.family_monospace)
@@ -592,6 +655,11 @@ deleteSetupVisuals(C2Setup s) =>
             if not na(s.stdDevData.labels)
                 for lb in s.stdDevData.labels
                     label.delete(lb)
+        // SMT Cleanup
+        if not na(s.smtLine)
+            line.delete(s.smtLine)
+        if not na(s.smtLabel)
+            label.delete(s.smtLabel)
 
 registerRecord(C2Setup s) =>
     setupRecords.push(SetupRecord.new(s, bar_index))
@@ -634,6 +702,73 @@ drawPhase(bool isBull, bool isC4) =>
         lbl := directionalLabel(bar_index + 2, isBull ? bot : top, 'C4', isBull)
     [bx, dash, lbl, top, bot]
 
+// SMT Divergence Helper
+CheckSMTDivergence(bool is_bearish, SMT_Tracker tracker_curr, SMT_Tracker tracker1, SMT_Tracker tracker2, bool sym1_enabled, bool sym2_enabled, bool sym1_inverse, bool sym2_inverse, string sym1_ticker, string sym2_ticker) =>
+    bool has_smt = false
+    int x1 = na
+    int x2 = na
+    float y1 = na
+    float y2 = na
+    string smt_sym = ""
+    
+    bool sym1_triggered = false
+    bool sym2_triggered = false
+    
+    bool curr_hh = tracker_curr.h > tracker_curr.prev_h
+    bool curr_ll = tracker_curr.l < tracker_curr.prev_l
+    bool curr_lh = not na(tracker_curr.prev_h) ? tracker_curr.h < tracker_curr.prev_h : false
+    bool curr_hl = not na(tracker_curr.prev_l) ? tracker_curr.l > tracker_curr.prev_l : false
+    
+    if sym1_enabled and not na(tracker1.prev_h) and not na(tracker1.h) and not na(tracker_curr.prev_h)
+        bool comp_hh = tracker1.h > tracker1.prev_h
+        bool comp_ll = not na(tracker1.prev_l) ? tracker1.l < tracker1.prev_l : false
+        bool comp_lh = tracker1.h < tracker1.prev_h
+        bool comp_hl = not na(tracker1.prev_l) ? tracker1.l > tracker1.prev_l : false
+        
+        if is_bearish
+            bool curr_leads = sym1_inverse ? (curr_hh and comp_hl) : (curr_hh and comp_lh)
+            bool comp_leads = sym1_inverse ? (comp_ll and curr_lh) : (comp_hh and curr_lh)
+            if curr_leads or comp_leads
+                sym1_triggered := true
+        else
+            bool curr_leads = sym1_inverse ? (curr_ll and comp_lh) : (curr_ll and comp_hl)
+            bool comp_leads = sym1_inverse ? (comp_hh and curr_hl) : (comp_ll and curr_hl)
+            if curr_leads or comp_leads
+                sym1_triggered := true
+    
+    if sym2_enabled and not na(tracker2.prev_h) and not na(tracker2.h) and not na(tracker_curr.prev_h)
+        bool comp_hh = tracker2.h > tracker2.prev_h
+        bool comp_ll = not na(tracker2.prev_l) ? tracker2.l < tracker2.prev_l : false
+        bool comp_lh = tracker2.h < tracker2.prev_h
+        bool comp_hl = not na(tracker2.prev_l) ? tracker2.l > tracker2.prev_l : false
+        
+        if is_bearish
+            bool curr_leads = sym2_inverse ? (curr_hh and comp_hl) : (curr_hh and comp_lh)
+            bool comp_leads = sym2_inverse ? (comp_ll and curr_lh) : (comp_hh and curr_lh)
+            if curr_leads or comp_leads
+                sym2_triggered := true
+        else
+            bool curr_leads = sym2_inverse ? (curr_ll and comp_lh) : (curr_ll and comp_hl)
+            bool comp_leads = sym2_inverse ? (comp_hh and curr_hl) : (comp_ll and curr_hl)
+            if curr_leads or comp_leads
+                sym2_triggered := true
+    
+    if sym1_triggered or sym2_triggered
+        has_smt := true
+        if is_bearish
+            x1 := tracker_curr.prev_h_idx
+            x2 := tracker_curr.h_idx
+            y1 := tracker_curr.prev_h
+            y2 := tracker_curr.h
+        else
+            x1 := tracker_curr.prev_l_idx
+            x2 := tracker_curr.l_idx
+            y1 := tracker_curr.prev_l
+            y2 := tracker_curr.l
+        smt_sym := sym1_triggered and sym2_triggered ? sym1_ticker + "/" + sym2_ticker : sym1_triggered ? sym1_ticker : sym2_ticker
+    
+    [has_smt, x1, x2, y1, y2, smt_sym]
+
 newSetup(bool isBull, float extreme, label c2Lbl, float cisdLevel, int cisdIndex, bool cisdAlreadyConfirmed, int cisdConfirmBar) =>
     s = C2Setup.new(isBull, extreme, 1, false, c2Lbl)
     [bx, dash, _, _, _] = drawPhase(isBull, false)
@@ -643,6 +778,26 @@ newSetup(bool isBull, float extreme, label c2Lbl, float cisdLevel, int cisdIndex
     s.cisdIndex := cisdIndex
     if cisdAlreadyConfirmed and not na(cisdLevel) and not na(cisdIndex) and not na(cisdConfirmBar)
         confirmCisd(s, cisdConfirmBar)
+    
+    // SMT Detection at Setup Creation (Only if Setup Only mode is active)
+    if smt_show_input and smt_show_mode_input == 'Setup Only' and not q_hideFractals
+        [has_smt, x1, x2, y1, y2, sym_name] = CheckSMTDivergence(not isBull, smt_tracker_curr, smt_tracker1, smt_tracker2, true, smt_sym2_enable_input, smt_sym1_inverse, smt_sym2_inverse, smt_sym1_ticker, smt_sym2_ticker)
+        if has_smt
+            s.has_smt := true
+            s.smt_x1 := x1
+            s.smt_x2 := x2
+            s.smt_y1 := y1
+            s.smt_y2 := y2
+            s.smt_symbol := sym_name
+            
+            // Draw SMT Line
+            s.smtLine := line.new(x1, y1, x2, y2, color = smt_color_input, style = lineStyleFromStr(smt_line_style_input), width = smt_line_width_input)
+            if smt_label_show_input
+                int mid_x = math.round((x1 + x2) / 2)
+                float mid_y = (y1 + y2) / 2
+                lbl_style_smt = isBull ? label.style_label_up : label.style_label_down
+                s.smtLabel := label.new(mid_x, mid_y, sym_name, color = na, textcolor = smt_color_input, style = lbl_style_smt, size = smtLabelSize(smt_label_size_input))
+
     registerRecord(s)
     s
 
@@ -823,6 +978,111 @@ if isTrueWk
     curWl := low
     
 bool tfIs5mOrHigher = timeframe.in_seconds() >= 300
+
+// SMT Tracker updates - reset on new HTF candle, update high/low every bar
+if periodChanged and smt_show_input
+    // CURRENT SYMBOL
+    smt_tracker_curr.prev_h := smt_tracker_curr.h
+    smt_tracker_curr.prev_l := smt_tracker_curr.l
+    smt_tracker_curr.prev_h_idx := smt_tracker_curr.h_idx
+    smt_tracker_curr.prev_l_idx := smt_tracker_curr.l_idx
+    smt_tracker_curr.h := high
+    smt_tracker_curr.l := low
+    smt_tracker_curr.h_idx := bar_index
+    smt_tracker_curr.l_idx := bar_index
+    
+    // COMPARISON SYMBOL 1
+    smt_tracker1.prev_h := smt_tracker1.h
+    smt_tracker1.prev_l := smt_tracker1.l
+    smt_tracker1.prev_h_idx := smt_tracker1.h_idx
+    smt_tracker1.prev_l_idx := smt_tracker1.l_idx
+    smt_tracker1.h := smt_sym1_h
+    smt_tracker1.l := smt_sym1_l
+    smt_tracker1.h_idx := bar_index
+    smt_tracker1.l_idx := bar_index
+    
+    // COMPARISON SYMBOL 2
+    smt_tracker2.prev_h := smt_tracker2.h
+    smt_tracker2.prev_l := smt_tracker2.l
+    smt_tracker2.prev_h_idx := smt_tracker2.h_idx
+    smt_tracker2.prev_l_idx := smt_tracker2.l_idx
+    smt_tracker2.h := smt_sym2_h
+    smt_tracker2.l := smt_sym2_l
+    smt_tracker2.h_idx := bar_index
+    smt_tracker2.l_idx := bar_index
+
+// Update running highs/lows for all symbols (every bar)
+if smt_show_input
+    // Current symbol
+    if high > smt_tracker_curr.h or na(smt_tracker_curr.h)
+        smt_tracker_curr.h := high
+        smt_tracker_curr.h_idx := bar_index
+    if low < smt_tracker_curr.l or na(smt_tracker_curr.l)
+        smt_tracker_curr.l := low
+        smt_tracker_curr.l_idx := bar_index
+    // Comparison symbol 1
+    if not na(smt_sym1_h) and (smt_sym1_h > smt_tracker1.h or na(smt_tracker1.h))
+        smt_tracker1.h := smt_sym1_h
+        smt_tracker1.h_idx := bar_index
+    if not na(smt_sym1_l) and (smt_sym1_l < smt_tracker1.l or na(smt_tracker1.l))
+        smt_tracker1.l := smt_sym1_l
+        smt_tracker1.l_idx := bar_index
+    // Comparison symbol 2
+    if not na(smt_sym2_h) and (smt_sym2_h > smt_tracker2.h or na(smt_tracker2.h))
+        smt_tracker2.h := smt_sym2_h
+        smt_tracker2.h_idx := bar_index
+    if not na(smt_sym2_l) and (smt_sym2_l < smt_tracker2.l or na(smt_tracker2.l))
+        smt_tracker2.l := smt_sym2_l
+        smt_tracker2.l_idx := bar_index
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// ALL SMT DIVERGENCE LOGIC
+// ═══════════════════════════════════════════════════════════════════════════════════
+var bool smt_bear_fired = false
+var bool smt_bull_fired = false
+
+if periodChanged
+    smt_bear_fired := false
+    smt_bull_fired := false
+
+var array<line>  allSmtLines  = array.new<line>()
+var array<label> allSmtLabels = array.new<label>()
+
+if smt_show_input and smt_show_mode_input == 'All SMT' and not q_hideFractals
+    [has_smt_b, x1_b, x2_b, y1_b, y2_b, sym_name_b] = CheckSMTDivergence(true, smt_tracker_curr, smt_tracker1, smt_tracker2, true, smt_sym2_enable_input, smt_sym1_inverse, smt_sym2_inverse, smt_sym1_ticker, smt_sym2_ticker)
+    if has_smt_b and not smt_bear_fired
+        smt_bear_fired := true
+        line ln = line.new(x1_b, y1_b, x2_b, y2_b, color = smt_color_input, style = lineStyleFromStr(smt_line_style_input), width = smt_line_width_input)
+        label lbl = na
+        if smt_label_show_input
+            int mid_x = math.round((x1_b + x2_b) / 2)
+            float mid_y = (y1_b + y2_b) / 2
+            lbl := label.new(mid_x, mid_y, sym_name_b, color = na, textcolor = smt_color_input, style = label.style_label_down, size = smtLabelSize(smt_label_size_input))
+        allSmtLines.push(ln)
+        allSmtLabels.push(lbl)
+        if allSmtLines.size() > 50
+            line.delete(allSmtLines.shift())
+            label.delete(allSmtLabels.shift())
+
+    [has_smt_bll, x1_bll, x2_bll, y1_bll, y2_bll, sym_name_bll] = CheckSMTDivergence(false, smt_tracker_curr, smt_tracker1, smt_tracker2, true, smt_sym2_enable_input, smt_sym1_inverse, smt_sym2_inverse, smt_sym1_ticker, smt_sym2_ticker)
+    if has_smt_bll and not smt_bull_fired
+        smt_bull_fired := true
+        line ln = line.new(x1_bll, y1_bll, x2_bll, y2_bll, color = smt_color_input, style = lineStyleFromStr(smt_line_style_input), width = smt_line_width_input)
+        label lbl = na
+        if smt_label_show_input
+            int mid_x = math.round((x1_bll + x2_bll) / 2)
+            float mid_y = (y1_bll + y2_bll) / 2
+            lbl := label.new(mid_x, mid_y, sym_name_bll, color = na, textcolor = smt_color_input, style = label.style_label_up, size = smtLabelSize(smt_label_size_input))
+        allSmtLines.push(ln)
+        allSmtLabels.push(lbl)
+        if allSmtLines.size() > 50
+            line.delete(allSmtLines.shift())
+            label.delete(allSmtLabels.shift())
+
+if smt_show_mode_input != 'All SMT' and allSmtLines.size() > 0
+    while allSmtLines.size() > 0
+        line.delete(allSmtLines.shift())
+        label.delete(allSmtLabels.shift())
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 // DEVIL'S MARK LOGIC
