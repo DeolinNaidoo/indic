@@ -39,7 +39,6 @@ tfToMinutes(string tf) =>
         "M"    => 43200
         => 0
 
-// True Opens Time Helper
 f_isStart(string sessStr) =>
     t = time(timeframe.period, sessStr, "America/New_York")
     not na(t) and na(t[1])
@@ -49,22 +48,13 @@ f_isStart(string sessStr) =>
 // MASTER FEATURE TOGGLES
 // ═══════════════════════════════════════════════════════════════════════════════════
 grpMaster = "─── Master Toggles ───"
-showHistory  = input.bool(false, "Enable Show History", group=grpMaster, tooltip="If enabled, historical levels will remain on the chart. If disabled, only the current active lines will show.")
-showSessions = input.bool(true, "Enable True Session Opens (NY AM)", group=grpMaster)
-showTMSO     = input.bool(true, "Enable True Market Session Open (9:30 NY)", group=grpMaster)
-showDO       = input.bool(true, "Enable Daily Open (18:00 NY)", group=grpMaster)
-showDay      = input.bool(true, "Enable True Day Open (00:00 NY)", group=grpMaster)
-showHOD_LOD  = input.bool(true, "Enable Current Day High/Low (HOD/LOD)", group=grpMaster)
-showWO       = input.bool(true, "Enable Week Open (Mon 00:00 NY)", group=grpMaster)    
-showWeek     = input.bool(true, "Enable True Week Open (Mon 18:00 NY)", group=grpMaster)
-showMO       = input.bool(true, "Enable Month Open (1st 00:00 NY)", group=grpMaster)   
-showMonth    = input.bool(true, "Enable True Month Open (2nd Mon 18:00)", group=grpMaster)
-showYO       = input.bool(true, "Enable Year Open (Jan 1 00:00 NY)", group=grpMaster)  
-showYear     = input.bool(true, "Enable True Year Open (Apr 1, 00:00 NY)", group=grpMaster)
-showPDH_PDL  = input.bool(true, "Enable PDH/PDL", group=grpMaster)
-showPWH_PWL  = input.bool(false, "Enable PWH/PWL", group=grpMaster)
-i_showCurrent= input.bool(true, "Enable Devil's Mark (CTF)", group=grpMaster)
-i_showHTF    = input.bool(false, "Enable Devil's Mark (HTF)", group=grpMaster)
+showHOD_LOD_Test = input.bool(true, "Draw HOD/LOD (Testing)", group=grpMaster)
+
+// --- HOD/LOD Colors & Styles ---
+gV = "─── HOD/LOD Testing Colors ───"
+hodLodColor  = input.color(color.white, "HOD/LOD Line Color", group = gV)
+hodLodTxtCol = input.color(color.white, "HOD/LOD Text Color", group = gV)
+hodLodWidth  = input.int(1, "HOD/LOD Line Width", minval = 1, maxval = 5, group = gV)
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 //  QUICK ACCESS MASTER SWITCHES (TURN ENTIRE FEATURES OFF INSTANTLY)
@@ -74,7 +64,6 @@ quick_PSP      = input.bool(true,  "Enable PSP Entirely", group=grpQuick)
 quick_SD       = input.bool(true,  "Enable SD Entirely", group=grpQuick)
 quick_SMTF     = input.bool(true,  "Enable SMT-Fill Entirely", group=grpQuick)
 quick_SSMT     = input.bool(true,  "Enable All SSMT/HSSMT/ISSMT", group=grpQuick)
-quick_CISD     = input.bool(true,  "Enable CISD Entirely", group=grpQuick)
 quick_Struct   = input.bool(false, "Enable Structure (HH/LL)", group=grpQuick)
 quick_Table    = input.bool(true,  "Enable Dashboard Table", group=grpQuick)
 
@@ -88,12 +77,11 @@ sdFilterEnable   = input.bool(true, "Enable SD Filter", group=grpMaster)
 smtfFilterEnable = input.bool(true, "Enable SMTF Filter", group=grpMaster)
 showSMTF         = input.bool(true, "Enable SMT-Fill (Larper)", group=grpMaster)
 
-// SSMT / CISD Master Enables
-grpEnable = "─── Enable SSMT/CISD Features ───"
+// SSMT Master Enables
+grpEnable = "─── Enable SSMT Features ───"
 show_normal_ssmt   = input.bool(true,  "Enable Normal SSMT (Wick Sweeps)", group=grpEnable)
 show_hidden_ssmt   = input.bool(true,  "Enable Hidden SSMT (Body Sweeps)", group=grpEnable)
 show_issmt         = input.bool(true,  "Enable ISSMT (Intermarket)", group=grpEnable)
-use_cisd           = input.bool(true,  "Enable CISD Detection", group=grpEnable)
 show_structure     = input.bool(false,  "Enable Structure (HH/LL/HL/LH)", group=grpEnable)
 show_dividers      = input.bool(false, "Enable Cycle Dividers (Beta)", group=grpEnable)
 show_table         = input.bool(true,  "Enable Dashboard Table", group=grpEnable)
@@ -103,51 +91,6 @@ show_table         = input.bool(true,  "Enable Dashboard Table", group=grpEnable
 // FEATURE SETTINGS
 // ═══════════════════════════════════════════════════════════════════════════════════
 
-// --- True Opens Settings ---
-gV = "─── True Opens Colors & Styles ───"
-// Bubblegum Blue & Pink palette tuned for solid black background
-GUM_BLUE    = color.rgb(0, 176, 255)   // bubblegum light blue (bullish)
-GUM_PINK    = color.rgb(255, 61, 129)  // bubblegum pink (bearish)
-GRAY_OPEN   = color.rgb(160, 160, 160) // neutral gray for opens
-GRAY_LIGHT  = color.rgb(180, 180, 180) // lighter gray for true opens
-WHITE_BOLD  = color.rgb(240, 240, 240) // off-white for PDH/PWL (bold)
-TXT_SOFT    = color.rgb(200, 200, 200) // soft text for opens
-
-sessionColor = input.color(GRAY_OPEN,  "Session Color (NY AM)",        group = gV)
-doColor      = input.color(GRAY_OPEN,  "Daily Open Color",             group = gV)
-dayColor     = input.color(GRAY_LIGHT, "True Day Open Color",          group = gV)
-woColor      = input.color(GRAY_OPEN,  "Week Open Color",              group = gV)
-weekColor    = input.color(GRAY_LIGHT, "True Week Open Color",         group = gV)
-moColor      = input.color(GRAY_OPEN,  "Month Open Color",             group = gV)
-monthColor   = input.color(GRAY_LIGHT, "True Month Open Color",        group = gV)
-yoColor      = input.color(GRAY_OPEN,  "Year Open Color",              group = gV)
-yearColor    = input.color(GRAY_LIGHT, "True Year Open Color",         group = gV)
-pdhPwlColor     = input.color(WHITE_BOLD,   "PDH/PWL Line Color",        group = gV)
-pdhPwlTextColor = input.color(color.white,  "PDH/PWL Text Color",        group = gV)
-opensTextColor = input.color(TXT_SOFT,      "Opens Text Color",          group = gV)
-lineWidthIn  = input.int(1, "Open Line Width", minval = 1, maxval = 5, group = gV)
-pdhPwlWidth  = input.int(1, "PDH/PWL Line Width", minval = 1, maxval = 5, group = gV)
-lineStyleIn  = input.string("dotted", "Open Line Style", options = ["solid", "dashed", "dotted"], group = gV)
-pdhPwlStyle  = input.string("dotted", "PDH/PWL Line Style", options = ["solid", "dashed", "dotted"], group = gV)
-showLabels   = input.bool(true, "Show Labels", group = gV)
-labelGap     = input.int(3, "Label Gap (bars right of line)", minval = 0, group = gV)
-lineStyle    = lineStyleIn == "dashed" ? line.style_dashed : lineStyleIn == "dotted" ? line.style_dotted : line.style_solid
-pdhPwlLnStyl = pdhPwlStyle == "dashed" ? line.style_dashed : pdhPwlStyle == "dotted" ? line.style_dotted : line.style_solid
-
-gDM = "─── Devil's Mark Settings ───"
-i_currentLineLength = input.int(50, "CTF Line Length", minval=1, maxval=100, group = gDM)
-i_currentOpenHighColor = input.color(GUM_PINK, "CTF Open == High Color", group = gDM)
-i_currentOpenLowColor  = input.color(GUM_BLUE, "CTF Open == Low Color",  group = gDM)
-i_currentEmojiLabel = input.string("DM", "CTF Mark Text", options = ["DM", "O=H", "O=L", "X", "*", "•"], group = gDM)
-i_currentLineWidth  = input.int(2, "CTF Line Width", minval=1, maxval=5, group = gDM)
-
-i_tf = input.timeframe("240", "HTF Timeframe", group = gDM)
-i_lineLength = input.int(50, "HTF Line Length", minval=1, maxval=100, group = gDM)
-i_openHighColor = input.color(GUM_PINK, "HTF Open == High Color", group = gDM)
-i_openLowColor  = input.color(GUM_BLUE, "HTF Open == Low Color",  group = gDM)
-i_emojiLabel = input.string("DM", "HTF Mark Text", options = ["DM", "O=H", "O=L", "X", "*", "•"], group = gDM)
-i_hLineWidth = input.int(2, "HTF Line Width", minval=1, maxval=5, group = gDM)
-// --- Larper Suite Settings ---
 grpSess     = "─── Larper Sessions ───"
 sessNYTime  = input.session("0830-1100", "New York", group=grpSess, tooltip="8:30 AM to 11:00 AM ET")
 sessLDNTime = input.session("0200-0500", "London", group=grpSess, tooltip="2:00 AM to 5:00 AM ET")
@@ -193,6 +136,12 @@ showBearDiv  = input.bool(true, "Bearish", group=grpSD, inline="sdDiv", tooltip=
 sdBullColor  = input.color(color.new(#00B0FF, 0), "Bull", group=grpSD, inline="sdC") 
 sdBearColor  = input.color(color.new(#FF3D81, 0), "Bear", group=grpSD, inline="sdC") 
 lineWidth    = input.int(2, "Width", minval=1, maxval=4, group=grpSD)
+
+// --- NEW: SD/PSP Time Filters ---
+grpTime     = "─── SD/PSP Time Filters ───"
+sdpsp_1m_sess = input.session("0700-1200", "1m Chart Session", group=grpTime, tooltip="Only draws SD/PSP on the 1m chart during this time.")
+sdpsp_today_only = input.bool(true, "5m/15m Today Only", group=grpTime, tooltip="Only draws SD/PSP on 5m/15m if the bar is in the current True Day (18:00 NY reset).")
+sdpsp_week_only = input.bool(true, "1H This Week Only", group=grpTime, tooltip="Only draws SD/PSP on 1H if the bar is in the current True Week.")
 
 grpSMTF           = "─── Larper SMT-Fill Settings ───"
 smtfMaxGaps       = input.int(25, "Max Gaps", minval=5, maxval=100, group=grpSMTF)
@@ -301,32 +250,6 @@ max_history    = input.int(0, "Max History (0 = infinite)", minval=0, inline="st
 
 lbl_size = label_size_in == "Tiny" ? size.tiny : label_size_in == "Small" ? size.small : label_size_in == "Normal" ? size.normal : size.large
 
-// --- CISD Settings ---
-g10 = "─── CISD Settings ───"
-cisd_use_y       = input.bool(false, "Yearly",    inline="cisd1", group=g10)
-cisd_use_q       = input.bool(false, "Quarterly", inline="cisd1", group=g10)
-cisd_use_mo      = input.bool(false, "Monthly",   inline="cisd1", group=g10)
-cisd_use_w       = input.bool(false, "Weekly",    inline="cisd1", group=g10)
-cisd_use_d       = input.bool(false,  "Daily",     inline="cisd1", group=g10)
-cisd_use_90      = input.bool(true,  "90m",       inline="cisd1", group=g10)
-cisd_use_mic     = input.bool(true,  "Micro",     inline="cisd1", group=g10)
-
-cisd_min_conf    = input.int(1, "Min SSMT Confluence for CISD", minval=1, maxval=3, inline="cisd1b", group=g10, tooltip="Minimum SSMT confluence (1-3) required to trigger CISD.")
-
-cisd_wait_bars   = input.int(20,     "Max Wait Bars AFTER SSMT", minval=5, maxval=100, inline="cisd2", group=g10, tooltip="How many bars to wait for displacement after the SSMT triggers.")
-cisd_line_color  = input.color(color.rgb(4, 85, 191), "CISD Line Color", inline="cisd3", group=g10)
-cisd_text_color  = input.color(color.rgb(4, 85, 191),  "CISD Text Color", inline="cisd3", group=g10)
-cisd_line_width  = input.int(2,      "CISD Line Width", minval=1, maxval=4, inline="cisd3", group=g10)
-cisd_line_length = input.int(15,     "CISD Line Length (bars)", minval=5, maxval=50, inline="cisd3", group=g10)
-
-remove_invalidated_cisd = input.bool(true, "Remove Invalidated CISD", inline="cisd3b", group=g10, tooltip="Removes CISD if price closes back through it.")
-
-use_cisd_sess    = input.bool(true, "Filter CISD by Session", group=g10)
-cisd_session     = input.session("0830-1100", "CISD Session Time (HHMM-HHMM)", group=g10)
-cisd_show_debug  = input.bool(false, "BETA: Show Debug (Origin & Trigger)", group=g10, tooltip="Draws markers to show what the code is seeing.")
-
-in_cisd_session = not use_cisd_sess or not na(time(timeframe.period, cisd_session, session_tz))
-
 // --- Structure Settings ---
 g_str = "─── Structure Settings ───"
 pivot_lb = input.int(1, "Left Bars", group=g_str)
@@ -341,13 +264,12 @@ zz_color = input.color(color.gray, "ZigZag Line Color", group=g_str)
 zz_width = input.int(1, "ZigZag Line Width", minval=1, maxval=5, group=g_str)
 
 // --- Dashboard Settings ---
-// --- Dashboard Settings ---
 g9 = "─── Dashboard Table Settings ───"
 table_pos_in       = input.string("Top Right", "Position", inline="tb1", group=g9, options=["Top Right","Top Left","Bottom Right","Bottom Left","Middle Right"])
 table_size_in      = input.string("Tiny", "Size", inline="tb1", group=g9, options=["Tiny","Small","Normal","Large"])
 tbl_bull_color     = input.color(color.new(#00B0FF, 70), "Bull Color", inline="tb2", group=g9)
 tbl_bear_color     = input.color(color.new(#FF3D81, 70), "Bear Color", inline="tb2", group=g9)
-tbl_magnet_color   = input.color(color.new(#FFD740, 60), "Magnet Color (Bull+Bear)", inline="tb2", group=g9, tooltip="Shows when BOTH Bull and Bear SSMT exist in the same cycle.")
+tbl_magnet_color   = input.color(color.new(#FFD740, 80), "Magnet BG (Soft Yellow)", inline="tb2", group=g9, tooltip="Soft pastel background for Magnet setups. Text will be Blue/Pink.")
 tbl_neutral_color  = input.color(color.new(#1A1A1A, 0), "Neutral Color", inline="tb2", group=g9)
 tbl_header_color   = input.color(color.new(#0A0A0A, 0), "Header Color", inline="tb2", group=g9)
 merge_dup_labels   = input.bool(true,  "Merge Duplicate Labels (Same Cycle/Quarter)", inline="tb3", group=g9,
@@ -372,7 +294,7 @@ div_history = input.int(150, "Max Divider History", minval=20, maxval=400, group
 
 
 // ═══════════════════════════════════════════════════════════════════════════════════
-// TYPES & STATE VARIABLES (SSMT/CISD)
+// TYPES & STATE VARIABLES (SSMT)
 // ═══════════════════════════════════════════════════════════════════════════════════
 type SsmtEvent
     float  price1
@@ -395,27 +317,6 @@ type SsmtEvent
     int    master_idx
     string cycle_id
     bool cisd_queued
-
-type CisdState
-    bool  is_bear
-    float start_price
-    int   start_idx
-    int   trigger_idx
-    int   t2_time
-    int   t2_bar_idx
-    float p2_price
-    bool  origin_found
-    string struc_tag
-    string group_key
-    bool  drawn
-
-type DrawnCisd
-    line  ln
-    label lb
-    float price
-    bool  is_bear
-    bool  active
-    string group_key
 
 type StrucPivot
     int bar_idx
@@ -461,19 +362,22 @@ type ChartQuarterTracker
     float lmin
     int   prev_quarter
 
+// ═══════════════════════════════════════════════════════════════════════════════════
+// SIGNAL HISTORY TRACKING FOR SSMT ALIGNMENT
+// ═══════════════════════════════════════════════════════════════════════════════════
+type SignalHistory
+    float price
+    int   bar_index
+    int   time_val
+    bool  is_bull
+    bool  is_sd       // true = SD, false = PSP
+
+var array<SignalHistory> signal_history = array.new<SignalHistory>()
+
 var array<SsmtEvent> all_events = array.new<SsmtEvent>()
 var array<int> active_count = array.new<int>(1)
 
-var array<CisdState> cisd_states = array.new<CisdState>()
-var array<DrawnCisd> drawn_cisds = array.new<DrawnCisd>()
 var array<StrucPivot> struc_pivots = array.new<StrucPivot>()
-
-var int[] pending_t1 = array.new_int()
-var int[] pending_t2 = array.new_int()
-var float[] pending_p2 = array.new_float()
-var int[] pending_is_bear = array.new_int()
-var string[] pending_gkey = array.new_string()
-var map<string, bool> cisd_pending_map = map.new<string, bool>()
 
 var map<string, CycleState>  main_state_map  = map.new<string, CycleState>()
 var map<string, StreamState> ssmt_state_map  = map.new<string, StreamState>()
@@ -493,17 +397,39 @@ var map<string, float> last_bull_price = map.new<string, float>()
 var map<string, int> last_bull_time = map.new<string, int>()
 
 var map<string, ChartQuarterTracker> chart_qt_map = map.new<string, ChartQuarterTracker>()
-var table dashboard_tbl = table.new(tbl_pos, 6, 9, bgcolor=color.new(#000000, 0), frame_color=color.new(#333333, 0), frame_width=1, border_color=color.new(#1A1A1A, 0), border_width=1)
+var table dashboard_tbl = table.new(tbl_pos, 5, 16, bgcolor=color.new(#000000, 0), frame_color=color.new(#333333, 0), frame_width=1, border_color=color.new(#1A1A1A, 0), border_width=1)
 
 var array<line>  divider_lines  = array.new<line>()
 var array<label> divider_labels = array.new<label>()
-var line[]  cisd_lines = array.new_line()
-var label[] cisd_labels = array.new_label()
-var label[] cisd_debug_labels = array.new_label()
 var line[] zz_lines = array.new_line()
 var int last_zz_bar = na
 var float last_zz_price = na
 var int last_zz_dir = na
+
+// Track HOD/LOD for cycle purge exception (Larper Lines Logic)
+var float curDh = na
+var float curDl = na
+var float prevDh = na
+var float prevDl = na
+var int hodBar = na
+var int lodBar = na
+
+is1800 = f_isStart("1800-1801:1234567")
+
+if na(curDh) or high > curDh
+    curDh := high
+    hodBar := bar_index
+if na(curDl) or low < curDl
+    curDl := low
+    lodBar := bar_index
+
+if is1800
+    prevDh := curDh
+    prevDl := curDl
+    curDh := high
+    curDl := low
+    hodBar := bar_index
+    lodBar := bar_index
 
 // ════════════════════════════════════════════════════════════════════════════════════
 // ADVANCED CYCLE FILTERING SYSTEM (Larper Suite)
@@ -653,7 +579,7 @@ smtfPassesFilter  = passesFilter(smtfFilt, yearlyQ, monthlyQ, weeklyQ, dailyQ, q
 
 
 // ════════════════════════════════════════════════════════════════════════════════════
-// SSMT/CISD CORE VARIABLES & TRUE ANCHOR QT TIME MATH
+// SSMT CORE VARIABLES & TRUE ANCHOR QT TIME MATH
 // ════════════════════════════════════════════════════════════════════════════════════
 tf = timeframe.period
 
@@ -814,83 +740,6 @@ f_get_cycle_id(string cyc) =>
 // ---------------------------
 
 // ═══════════════════════════════════════════════════════════════════════════════════
-// TRUE OPENS & PDH/PWL LOGIC
-// ═══════════════════════════════════════════════════════════════════════════════════
-isNYAM    = f_isStart("0730-0731:1234567")
-inNYAMSession = not na(time(timeframe.period, "0730-1100:1234567", "America/New_York"))
-is930     = f_isStart("0930-0931:1234567") // NEW TMSO
-is1800 = f_isStart("1800-1801:1234567")
-is0000 = f_isStart("0000-0001:1234567")
-inTNYSession   = not na(time(timeframe.period, "0730-1200:1234567", "America/New_York"))
-inTMSOSession  = not na(time(timeframe.period, "0930-1200:1234567", "America/New_York"))
-isDO      = is1800
-isTrueDay = is0000
-
-isTrueWk  = f_isStart("1800-1801:2")
-
-mondayAt18 = f_isStart("1800-1801:2")
-var int mondayCount = 0
-if nyMonth != nyMonth[1]
-    mondayCount := 0
-if mondayAt18
-    mondayCount += 1
-isTrueMo = mondayAt18 and mondayCount == 2
-isTrueYr = nyMonth == 4 and nyMonth[1] != 4
-
-
-// --- NEW: Standard Opens Time Logic ---
-isWO = f_isStart("1800-1801:1") // Sunday 18:00 NY (Day 1 of the week)
-isMO = is0000 and nyDay == 1    // 1st of the month at 00:00 NY
-isYO = is0000 and nyMonth == 1 and nyDay == 1 // Jan 1st at 00:00 NY
-// --------------------------------------
-
-var float pdh = na
-var float pdl = na
-var float pwh = na
-var float pwl = na
-var float curDh = na
-var float curDl = na
-var float curWh = na
-var float curWl = na
-
-if na(curDh) or high > curDh
-    curDh := high
-if na(curDl) or low < curDl
-    curDl := low
-
-if na(curWh) or high > curWh
-    curWh := high
-if na(curWl) or low < curWl
-    curWl := low
-
-if is1800
-    pdh := curDh
-    pdl := curDl
-    curDh := high
-    curDl := low
-
-if isTrueWk
-    pwh := curWh
-    pwl := curWl
-    curWh := high
-    curWl := low
-    
-// ─── TF Restriction for PWH/PWL ───
-// True if chart is 5m or higher (5m = 300 seconds)
-bool tfIs5mOrHigher = timeframe.in_seconds() >= 300
-
-// ═══════════════════════════════════════════════════════════════════════════════════
-// DEVIL'S MARK LOGIC
-// ═══════════════════════════════════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════════════════════════════════
-// DEVIL'S MARK LOGIC
-// ═══════════════════════════════════════════════════════════════════════════════════
-[o_tf, h_tf, l_tf] = request.security(syminfo.tickerid, i_tf, [open, high, low], lookahead = barmerge.lookahead_on)
-bool openCondition = i_showHTF and (o_tf == h_tf or o_tf == l_tf) and timeframe.in_seconds() < timeframe.in_seconds(i_tf) and ta.change(time(i_tf)) != 0
-bool currentCondition = i_showCurrent and (open == high or open == low)
-
-
-// ═══════════════════════════════════════════════════════════════════════════════════
 // SECURITY DATA FETCHES (Larper Suite & SSMT)
 // ═══════════════════════════════════════════════════════════════════════════════════
 
@@ -975,6 +824,39 @@ string _tr4 = use_triad4 and triad4 != "" ? triad4 : syminfo.tickerid
 [t3c, t3o, t3h, t3l, t3t, t3name] = request.security(_tr3, tf, [close, open, high, low, time, syminfo.ticker], lookahead=barmerge.lookahead_off, ignore_invalid_symbol=true)
 [t4c, t4o, t4h, t4l, t4t, t4name] = request.security(_tr4, tf, [close, open, high, low, time, syminfo.ticker], lookahead=barmerge.lookahead_off, ignore_invalid_symbol=true)
 
+// --- OPTIMIZED: Smart 5m MTF Check (Historical & Current) ---
+bool mtf_5m_bull_sd = false, bool mtf_5m_bear_sd = false
+bool mtf_5m_bull_psp = false, bool mtf_5m_bear_psp = false
+
+// Arrays to hold historical 5m SD/PSP states for the time-window check
+var array<bool> hist_5m_bull_sd = array.new<bool>()
+var array<bool> hist_5m_bear_sd = array.new<bool>()
+var array<int>  hist_5m_times   = array.new<int>()
+
+if timeframe.period == "1" or timeframe.period == "15"
+    // Fetch last 4 5m bars (Current, 1 ago, 2 ago, 3 ago) = 20 minute window
+    [p5_l0, p5_l1, p5_l2, p5_l3, p5_h0, p5_h1, p5_h2, p5_h3, p5_c0, p5_c1, p5_o0, p5_o1] = request.security(syminfo.tickerid, "5", [low, low[1], low[2], low[3], high, high[1], high[2], high[3], close, close[1], open, open[1]], lookahead=barmerge.lookahead_on)
+    [a1_5_l0, a1_5_l1, a1_5_l2, a1_5_l3, a1_5_h0, a1_5_h1, a1_5_h2, a1_5_h3, a1_5_c0, a1_5_c1, a1_5_o0, a1_5_o1] = request.security(refSymbol1, "5", [low, low[1], low[2], low[3], high, high[1], high[2], high[3], close, close[1], open, open[1]], lookahead=barmerge.lookahead_on)
+    
+    // Check current bar (0)
+    mtf_5m_bull_sd := (p5_l0 < p5_l1) and not (a1_5_l0 < a1_5_l1)
+    mtf_5m_bear_sd := (p5_h0 > p5_h1) and not (a1_5_h0 > a1_5_h1)
+    mtf_5m_bull_psp := (p5_l0 < p5_l1) and (p5_c0 > p5_o0) and not (a1_5_c0 > a1_5_o0)
+    mtf_5m_bear_psp := (p5_h0 > p5_h1) and (p5_c0 < p5_o0) and (a1_5_c0 > a1_5_o0)
+
+    // Check previous 3 bars (1, 2, 3) and store in history
+    bool sd1 = (p5_l1 < p5_l2) and not (a1_5_l1 < a1_5_l2)
+    bool sd2 = (p5_l2 < p5_l3) and not (a1_5_l2 < a1_5_l3)
+    
+    // Push to history arrays (newest first)
+    array.unshift(hist_5m_bull_sd, sd1)
+    array.unshift(hist_5m_bear_sd, (p5_h1 > p5_h2) and not (a1_5_h1 > a1_5_h2))
+    
+    // Keep array size limited to last 3 bars
+    if array.size(hist_5m_bull_sd) > 3
+        array.pop(hist_5m_bull_sd)
+    if array.size(hist_5m_bear_sd) > 3
+        array.pop(hist_5m_bear_sd)
 // ═══════════════════════════════════════════════════════════════════════════════════
 // SMT-FILL TYPE & LOGIC (Larper Suite)
 // ═══════════════════════════════════════════════════════════════════════════════════
@@ -1297,8 +1179,7 @@ else if sdSwingLen == 3
     sdPriPivotLow := low[1] < low and low[1] < low[2] ? low[1] : na
 else if sdSwingLen == 5
     sdPriPivotHigh := high[2] > high and high[2] > high[1] and high[2] > high[3] and high[2] > high[4] ? high[2] : na
-    sdPriPivotLow := low[2] < low and low[2] < low[1] and low[2] < low[3] and low[2] < low[4] ? low[2] : na
-
+    sdPriPivotLow  := low[2] < low and low[2] < low[1] and low[2] < low[3] and low[2] < low[4] ? low[2] : na
 bool sdPriBrokeBelow = not na(sdPriPivotLow) and sdPL < sdPriPivotLow
 bool sdPriBrokeAbove = not na(sdPriPivotHigh) and sdPH > sdPriPivotHigh
 
@@ -1435,13 +1316,78 @@ else if validationMode == "Both needed (Hides standalone PSP & SD)"
     pspValid := bothOccur
     sdValid := bothOccur
 
-bool showBullSD = showBullDiv and sdValid and rawBullSD and quick_SD
-bool showBearSD = showBearDiv and sdValid and rawBearSD and quick_SD
+// --- NEW: Time Filter Logic (FIXED TO OBEY MASTER TOGGLES) ---
+bool sdpsp_time_ok = true // Default to true (no filter)
+if pspFilterEnable or sdFilterEnable // Only apply time filters if the master toggles are ON
+    bool in_1m_sess = not na(time(timeframe.period, sdpsp_1m_sess, "America/New_York"))
+    bool is_today = time >= dayStart
+    bool is_this_week = time >= weekAnchor
 
-bool hasSignal = pspPassesFilter and pspValid and rawAnyPSP and quick_PSP
-bool finalBullSig = pspPassesFilter and pspValid and rawBullPSP
-bool finalBearSig = pspPassesFilter and pspValid and rawBearPSP
-bool finalUltraSig = pspPassesFilter and pspValid and rawUltraPSP
+    if timeframe.period == "1"
+        sdpsp_time_ok := in_1m_sess
+    else if timeframe.period == "5" or timeframe.period == "15"
+        sdpsp_time_ok := sdpsp_today_only ? is_today : true
+    else if timeframe.period == "60"
+        sdpsp_time_ok := sdpsp_week_only ? is_this_week : true
+    else
+        sdpsp_time_ok := true
+
+// Exception: If attached to an active SSMT price
+bool bull_attached = false
+bool bear_attached = false
+if rawBullSD
+    for [k, v] in active_ssmt_bull_price
+        if not na(v) and math.abs(v - sdPL) <= syminfo.mintick
+            bull_attached := true
+            break
+if rawBearSD
+    for [k, v] in active_ssmt_bear_price
+        if not na(v) and math.abs(v - sdPH) <= syminfo.mintick
+            bear_attached := true
+            break
+
+bool showBullSD = showBullDiv and sdValid and rawBullSD and quick_SD and (sdpsp_time_ok or bull_attached)
+bool showBearSD = showBearDiv and sdValid and rawBearSD and quick_SD and (sdpsp_time_ok or bear_attached)
+
+// ── Record raw SD/PSP events for SSMT alignment (before time filter) ──
+if rawBullSD and sdValid and quick_SD
+    array.push(signal_history, SignalHistory.new(low, bar_index, time, true, true))
+if rawBearSD and sdValid and quick_SD
+    array.push(signal_history, SignalHistory.new(high, bar_index, time, false, true))
+if rawBullPSP and pspValid and quick_PSP
+    array.push(signal_history, SignalHistory.new(low, bar_index, time, true, false))
+if rawBearPSP and pspValid and quick_PSP
+    array.push(signal_history, SignalHistory.new(high, bar_index, time, false, false))
+
+// Clean up old entries (keep last 500)
+while array.size(signal_history) > 500
+    array.shift(signal_history)
+
+// ── Check if historical SD/PSP aligns with active SSMT (any cycle) ──
+f_check_signal_aligned(bool is_bull, bool is_sd_check) =>
+    bool aligned = false
+    map<string, float> price_map = is_bull ? active_ssmt_bull_price : active_ssmt_bear_price
+    for [k, v] in price_map
+        if not na(v)
+            float tol = math.max(syminfo.mintick * 10, v * 0.0005)
+            for sig_ev in signal_history
+                if sig_ev.is_bull == is_bull and sig_ev.is_sd == is_sd_check
+                    if math.abs(sig_ev.price - v) <= tol
+                        aligned := true
+                        break
+        if aligned
+            break
+    aligned
+
+bool bull_sd_historical_aligned  = f_check_signal_aligned(true, true)
+bool bear_sd_historical_aligned  = f_check_signal_aligned(false, true)
+bool bull_psp_historical_aligned = f_check_signal_aligned(true, false)
+bool bear_psp_historical_aligned = f_check_signal_aligned(false, false)
+
+bool hasSignal = pspPassesFilter and pspValid and rawAnyPSP and quick_PSP and (sdpsp_time_ok or (bull_attached or bear_attached))
+bool finalBullSig = pspPassesFilter and pspValid and rawBullPSP and (sdpsp_time_ok or bull_attached)
+bool finalBearSig = pspPassesFilter and pspValid and rawBearPSP and (sdpsp_time_ok or bear_attached)
+bool finalUltraSig = pspPassesFilter and pspValid and rawUltraPSP and (sdpsp_time_ok or (bull_attached or bear_attached))
 
 string pspLabelText = ""
 color  finalColor = na
@@ -1489,13 +1435,6 @@ f_get_stream(map<string, StreamState> m, string key) =>
         map.put(m, key, st)
     st
 
-f_remove_cisd_state(int t2_time, float p2_price, bool is_bear) =>
-    if array.size(cisd_states) > 0
-        for j = array.size(cisd_states) - 1 to 0
-            CisdState cs = array.get(cisd_states, j)
-            if cs.is_bear == is_bear and cs.t2_time == t2_time and cs.p2_price == p2_price
-                array.remove(cisd_states, j)
-
 register_ssmt(float p1, float p2, int t1, int t2, string asset, string cyc, string etype, bool hidden, bool bear, line l, label lb, float anchor, string bkey, int conf, int q_val) =>
     // Use the helper function to get the exact cycle instance ID
     string cycle_id = f_get_cycle_id(cyc)
@@ -1512,59 +1451,6 @@ register_ssmt(float p1, float p2, int t1, int t2, string asset, string cyc, stri
             line.delete(old.ln)
         if not na(old.lbl)
             label.delete(old.lbl)
-            
-    bool is_cisd_cycle = (cyc == "Y" and cisd_use_y) or (cyc == "Q" and cisd_use_q) or (cyc == "MoC" and cisd_use_mo) or (cyc == "W" and cisd_use_w) or (cyc == "D" and cisd_use_d) or (cyc == "90m" and cisd_use_90) or (cyc == "Mi" and cisd_use_mic)
-
-    bool ssmt_already_claimed = false
-    if etype == "HSSMT"
-        int limit = math.min(100, array.size(all_events))
-        for i = 0 to limit - 1
-            SsmtEvent check_ev = array.get(all_events, array.size(all_events) - 1 - i)
-            if check_ev.base_key == bkey and check_ev.is_bear == bear and check_ev.ev_type == "SSMT" and check_ev.active
-                ssmt_already_claimed := true
-                break
-
-    if use_cisd and (etype == "SSMT" or (etype == "HSSMT" and not ssmt_already_claimed)) and is_cisd_cycle and conf >= cisd_min_conf
-        string cisd_gkey = cyc + "_" + (bear ? "B" : "U") + "_" + str.tostring(t1)
-        bool already_pending = map.get(cisd_pending_map, cisd_gkey) == true
-        
-        if not already_pending
-            array.push(pending_t1, t1)
-            array.push(pending_t2, t2) // FIX: Was 'time'
-            array.push(pending_p2, p2)
-            array.push(pending_is_bear, bear ? 1 : 0)
-            array.push(pending_gkey, cisd_gkey)
-            map.put(cisd_pending_map, cisd_gkey, true)
-        else
-            bool found_in_state = false
-            if array.size(cisd_states) > 0
-                for i = array.size(cisd_states) - 1 to 0
-                    CisdState cs = array.get(cisd_states, i)
-                    if cs.group_key == cisd_gkey
-                        cs.t2_time := t2 // FIX: Was 'time'
-                        cs.trigger_idx := bar_index
-                        cs.origin_found := false 
-                        cs.start_price := na
-                        cs.start_idx := na
-                        cs.drawn := false 
-                        
-                        if array.size(drawn_cisds) > 0
-                            for k = array.size(drawn_cisds) - 1 to 0
-                                DrawnCisd dc = array.get(drawn_cisds, k)
-                                if dc.group_key == cisd_gkey and dc.active
-                                    line.delete(dc.ln)
-                                    label.delete(dc.lb)
-                                    dc.active := false
-                                    array.remove(drawn_cisds, k)
-                                    break
-                        found_in_state := true
-                        break
-            
-            if not found_in_state and array.size(pending_gkey) > 0
-                for i = 0 to array.size(pending_gkey) - 1
-                    if array.get(pending_gkey, i) == cisd_gkey
-                        array.set(pending_t2, i, t2) // FIX: Was 'time'
-                        break
     true
 
 f_main_process(string key, bool _tf_ok, int _val_ses, float op, float cls, float hi, float lo, int ti) =>
@@ -1702,9 +1588,7 @@ f_calc_confluence(float a_hi0, float a_hi1, float a_lo0, float a_lo1,
         bull_conf := 0
         
     [bear_conf, bull_conf]
-// ═══════════════════════════════════════════════════════════════════════════════════
-// ADVANCED TRIPLE-CHECK SSMT DETECTION
-// ═══════════════════════════════════════════════════════════════════════════════════
+
 // ═══════════════════════════════════════════════════════════════════════════════════
 // ADVANCED TRIPLE-CHECK SSMT DETECTION
 // ═══════════════════════════════════════════════════════════════════════════════════
@@ -1728,6 +1612,59 @@ f_ssmt_triple(string key,
     bool _bull0 = bull_conf >= required_conf
 
     if cycleChanged
+        // Clean up old SSMTs unless they are attached to HOD/LOD
+        if array.size(st.beh_events) > 0
+            for i = array.size(st.beh_events) - 1 to 0
+                SsmtEvent ev_del = array.get(st.beh_events, i)
+                bool is_hod_lod = false
+                if not na(curDh) and (math.abs(ev_del.price2 - curDh) <= syminfo.mintick or math.abs(ev_del.price1 - curDh) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(curDl) and (math.abs(ev_del.price2 - curDl) <= syminfo.mintick or math.abs(ev_del.price1 - curDl) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(prevDh) and (math.abs(ev_del.price2 - prevDh) <= syminfo.mintick or math.abs(ev_del.price1 - prevDh) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(prevDl) and (math.abs(ev_del.price2 - prevDl) <= syminfo.mintick or math.abs(ev_del.price1 - prevDl) <= syminfo.mintick)
+                    is_hod_lod := true
+                    
+                if not is_hod_lod
+                    if not na(ev_del.lbl)
+                        label.delete(ev_del.lbl)
+                    if not na(ev_del.ln)
+                        line.delete(ev_del.ln)
+                    ev_del.active := false
+                    ev_del.ln := na
+                    ev_del.lbl := na
+                    ev_del.current_txt := ""
+                    ev_del.master_idx := -1
+                    array.set(active_count, 0, array.get(active_count, 0) - 1)
+                    array.remove(st.beh_events, i)
+                    
+        if array.size(st.bul_events) > 0
+            for i = array.size(st.bul_events) - 1 to 0
+                SsmtEvent ev_del = array.get(st.bul_events, i)
+                bool is_hod_lod = false
+                if not na(curDh) and (math.abs(ev_del.price2 - curDh) <= syminfo.mintick or math.abs(ev_del.price1 - curDh) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(curDl) and (math.abs(ev_del.price2 - curDl) <= syminfo.mintick or math.abs(ev_del.price1 - curDl) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(prevDh) and (math.abs(ev_del.price2 - prevDh) <= syminfo.mintick or math.abs(ev_del.price1 - prevDh) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(prevDl) and (math.abs(ev_del.price2 - prevDl) <= syminfo.mintick or math.abs(ev_del.price1 - prevDl) <= syminfo.mintick)
+                    is_hod_lod := true
+
+                if not is_hod_lod
+                    if not na(ev_del.lbl)
+                        label.delete(ev_del.lbl)
+                    if not na(ev_del.ln)
+                        line.delete(ev_del.ln)
+                    ev_del.active := false
+                    ev_del.ln := na
+                    ev_del.lbl := na
+                    ev_del.current_txt := ""
+                    ev_del.master_idx := -1
+                    array.set(active_count, 0, array.get(active_count, 0) - 1)
+                    array.remove(st.bul_events, i)
+
         st.bear_fired := false
         st.bull_fired := false
         map.put(active_ssmt_bear, base_key, false)
@@ -1736,6 +1673,10 @@ f_ssmt_triple(string key,
         map.put(active_ssmt_bull_price, base_key, na)
         map.put(active_ssmt_bear_q, base_key, na)
         map.put(active_ssmt_bull_q, base_key, na)
+        map.put(last_bear_price, base_key, na)
+        map.put(last_bear_time, base_key, na)
+        map.put(last_bull_price, base_key, na)
+        map.put(last_bull_time, base_key, na)
 
     if (_bull0 or _bear0) and _tfok
         bool dup_bear = f_is_duplicate(base_key, a_hi0, _hmaxt, true, tol_a)
@@ -1847,7 +1788,6 @@ f_ssmt_triple(string key,
                 SsmtEvent ev_del = array.get(st.beh_events, i)
                 if not na(ev_del) and ev_del.active and not na(ev_del.ln)
                     if close > line.get_y2(ev_del.ln)
-                        f_remove_cisd_state(ev_del.time2, ev_del.price2, ev_del.is_bear)
                         if not na(ev_del.lbl)
                             label.delete(ev_del.lbl)
                         line.delete(ev_del.ln)
@@ -1871,7 +1811,6 @@ f_ssmt_triple(string key,
                 SsmtEvent ev_del = array.get(st.bul_events, i)
                 if not na(ev_del) and ev_del.active and not na(ev_del.ln)
                     if close < line.get_y2(ev_del.ln)
-                        f_remove_cisd_state(ev_del.time2, ev_del.price2, ev_del.is_bear)
                         if not na(ev_del.lbl)
                             label.delete(ev_del.lbl)
                         line.delete(ev_del.ln)
@@ -1889,6 +1828,7 @@ f_ssmt_triple(string key,
                         // FIXED: Clear dedup state so new SSMTs can fire
                         map.put(last_bull_price, base_key, na)
                         map.put(last_bull_time, base_key, na)
+
 // HIDDEN SSMT - FIXED OVERLAP & RETROACTIVE DELETE
 // HIDDEN SSMT - GLOBAL HIDE IF SSMT PRESENT
 f_hidden_ssmt(string key, float _close_max, float _close_max1, float _close_min, float _close_min1,
@@ -1899,6 +1839,59 @@ f_hidden_ssmt(string key, float _close_max, float _close_max1, float _close_min,
     st = f_get_stream(hssmt_state_map, key)
     
     if cycleChanged
+        // Clean up old HSSMTs unless they are attached to HOD/LOD
+        if array.size(st.beh_events) > 0
+            for i = array.size(st.beh_events) - 1 to 0
+                SsmtEvent ev_del = array.get(st.beh_events, i)
+                bool is_hod_lod = false
+                if not na(curDh) and (math.abs(ev_del.price2 - curDh) <= syminfo.mintick or math.abs(ev_del.price1 - curDh) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(curDl) and (math.abs(ev_del.price2 - curDl) <= syminfo.mintick or math.abs(ev_del.price1 - curDl) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(prevDh) and (math.abs(ev_del.price2 - prevDh) <= syminfo.mintick or math.abs(ev_del.price1 - prevDh) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(prevDl) and (math.abs(ev_del.price2 - prevDl) <= syminfo.mintick or math.abs(ev_del.price1 - prevDl) <= syminfo.mintick)
+                    is_hod_lod := true
+                    
+                if not is_hod_lod
+                    if not na(ev_del.lbl)
+                        label.delete(ev_del.lbl)
+                    if not na(ev_del.ln)
+                        line.delete(ev_del.ln)
+                    ev_del.active := false
+                    ev_del.ln := na
+                    ev_del.lbl := na
+                    ev_del.current_txt := ""
+                    ev_del.master_idx := -1
+                    array.set(active_count, 0, array.get(active_count, 0) - 1)
+                    array.remove(st.beh_events, i)
+                    
+        if array.size(st.bul_events) > 0
+            for i = array.size(st.bul_events) - 1 to 0
+                SsmtEvent ev_del = array.get(st.bul_events, i)
+                bool is_hod_lod = false
+                if not na(curDh) and (math.abs(ev_del.price2 - curDh) <= syminfo.mintick or math.abs(ev_del.price1 - curDh) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(curDl) and (math.abs(ev_del.price2 - curDl) <= syminfo.mintick or math.abs(ev_del.price1 - curDl) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(prevDh) and (math.abs(ev_del.price2 - prevDh) <= syminfo.mintick or math.abs(ev_del.price1 - prevDh) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(prevDl) and (math.abs(ev_del.price2 - prevDl) <= syminfo.mintick or math.abs(ev_del.price1 - prevDl) <= syminfo.mintick)
+                    is_hod_lod := true
+
+                if not is_hod_lod
+                    if not na(ev_del.lbl)
+                        label.delete(ev_del.lbl)
+                    if not na(ev_del.ln)
+                        line.delete(ev_del.ln)
+                    ev_del.active := false
+                    ev_del.ln := na
+                    ev_del.lbl := na
+                    ev_del.current_txt := ""
+                    ev_del.master_idx := -1
+                    array.set(active_count, 0, array.get(active_count, 0) - 1)
+                    array.remove(st.bul_events, i)
+
         st.bear_fired := false
         st.bull_fired := false
 
@@ -2028,6 +2021,7 @@ f_hidden_ssmt(string key, float _close_max, float _close_max1, float _close_min,
                         // FIXED: Clear dedup state
                         map.put(last_bull_price, base_key, na)
                         map.put(last_bull_time, base_key, na)
+
 // ISSMT
 f_issmt_triple(string key, float a_hi1, float a_hi0, float a_lo1, float a_lo0,
                float b_hi1, float b_hi0, float b_lo1, float b_lo0,
@@ -2047,6 +2041,59 @@ f_issmt_triple(string key, float a_hi1, float a_hi0, float a_lo1, float a_lo0,
     bool _bull0 = bull_conf >= 1
 
     if cycleChanged
+        // Clean up old ISSMTs unless they are attached to HOD/LOD
+        if array.size(st.beh_events) > 0
+            for i = array.size(st.beh_events) - 1 to 0
+                SsmtEvent ev_del = array.get(st.beh_events, i)
+                bool is_hod_lod = false
+                if not na(curDh) and (math.abs(ev_del.price2 - curDh) <= syminfo.mintick or math.abs(ev_del.price1 - curDh) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(curDl) and (math.abs(ev_del.price2 - curDl) <= syminfo.mintick or math.abs(ev_del.price1 - curDl) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(prevDh) and (math.abs(ev_del.price2 - prevDh) <= syminfo.mintick or math.abs(ev_del.price1 - prevDh) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(prevDl) and (math.abs(ev_del.price2 - prevDl) <= syminfo.mintick or math.abs(ev_del.price1 - prevDl) <= syminfo.mintick)
+                    is_hod_lod := true
+                    
+                if not is_hod_lod
+                    if not na(ev_del.lbl)
+                        label.delete(ev_del.lbl)
+                    if not na(ev_del.ln)
+                        line.delete(ev_del.ln)
+                    ev_del.active := false
+                    ev_del.ln := na
+                    ev_del.lbl := na
+                    ev_del.current_txt := ""
+                    ev_del.master_idx := -1
+                    array.set(active_count, 0, array.get(active_count, 0) - 1)
+                    array.remove(st.beh_events, i)
+                    
+        if array.size(st.bul_events) > 0
+            for i = array.size(st.bul_events) - 1 to 0
+                SsmtEvent ev_del = array.get(st.bul_events, i)
+                bool is_hod_lod = false
+                if not na(curDh) and (math.abs(ev_del.price2 - curDh) <= syminfo.mintick or math.abs(ev_del.price1 - curDh) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(curDl) and (math.abs(ev_del.price2 - curDl) <= syminfo.mintick or math.abs(ev_del.price1 - curDl) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(prevDh) and (math.abs(ev_del.price2 - prevDh) <= syminfo.mintick or math.abs(ev_del.price1 - prevDh) <= syminfo.mintick)
+                    is_hod_lod := true
+                if not na(prevDl) and (math.abs(ev_del.price2 - prevDl) <= syminfo.mintick or math.abs(ev_del.price1 - prevDl) <= syminfo.mintick)
+                    is_hod_lod := true
+
+                if not is_hod_lod
+                    if not na(ev_del.lbl)
+                        label.delete(ev_del.lbl)
+                    if not na(ev_del.ln)
+                        line.delete(ev_del.ln)
+                    ev_del.active := false
+                    ev_del.ln := na
+                    ev_del.lbl := na
+                    ev_del.current_txt := ""
+                    ev_del.master_idx := -1
+                    array.set(active_count, 0, array.get(active_count, 0) - 1)
+                    array.remove(st.bul_events, i)
+
         st.bear_fired := false
         st.bull_fired := false
 
@@ -2206,7 +2253,7 @@ if cycle_q and quick_SSMT
     f_run_ssmt_hssmt_all(tf_okQ, val_sesQ, show_normal_ssmt, show_hidden_ssmt, "Q")
 if cycle_y and quick_SSMT
     f_run_ssmt_hssmt_all(tf_okY, val_sesY, show_normal_ssmt, show_hidden_ssmt, "Y")
-if cycle_mi and quick_SSMT
+if cycle_mi and quick_SSMT and timeframe.period == "1"
     f_run_ssmt_hssmt_all(tf_ok_mic, val_sesm, show_normal_ssmt, show_hidden_ssmt, "Mi")
 
 if cycle_90 and quick_SSMT
@@ -2221,7 +2268,7 @@ if cycle_q and quick_SSMT
     f_run_issmt_all(tf_okQ, val_sesQ, "Q")
 if cycle_y and quick_SSMT
     f_run_issmt_all(tf_okY, val_sesY, "Y")
-if cycle_mi and quick_SSMT
+if cycle_mi and quick_SSMT and timeframe.period == "1"
     f_run_issmt_all(tf_ok_mic, val_sesm, "Mi")
 
 // ═══════════════════════════════════════════════════════════════════════════════════
@@ -2329,172 +2376,6 @@ if _hl
 
 if array.size(struc_pivots) > 500
     array.shift(struc_pivots)
-
-
-// ═══════════════════════════════════════════════════════════════════════════════════
-// CISD CORE LOGIC
-// ═══════════════════════════════════════════════════════════════════════════════════
-f_find_struc_origin(bool _bear, int t2_bar_idx) =>
-    float origin_price = na
-    int origin_idx = na
-    string origin_tag = na
-    
-    if array.size(struc_pivots) > 0
-        for i = array.size(struc_pivots) - 1 to 0
-            StrucPivot p = array.get(struc_pivots, i)
-            if p.bar_idx < t2_bar_idx
-                if _bear and (p.tag == "HL" or p.tag == "LL")
-                    origin_price := p.body_price
-                    origin_idx := p.bar_idx
-                    origin_tag := p.tag
-                    break
-                else if not _bear and (p.tag == "HH" or p.tag == "LH")
-                    origin_price := p.body_price
-                    origin_idx := p.bar_idx
-                    origin_tag := p.tag
-                    break
-    [origin_price, origin_idx, origin_tag]
-
-if use_cisd and quick_CISD
-    if array.size(pending_t2) > 0
-        for i = 0 to array.size(pending_t2) - 1
-            string gkey = array.get(pending_gkey, i)
-            bool already_exists = false
-            
-            if array.size(cisd_states) > 0
-                for j = array.size(cisd_states) - 1 to 0
-                    CisdState cs = array.get(cisd_states, j)
-                    if cs.group_key == gkey
-                        already_exists := true
-                        cs.t2_time := array.get(pending_t2, i)
-                        cs.trigger_idx := bar_index
-                        cs.origin_found := false
-                        cs.start_price := na
-                        cs.start_idx := na
-                        cs.drawn := false
-                        
-                        if array.size(drawn_cisds) > 0
-                            for k = array.size(drawn_cisds) - 1 to 0
-                                DrawnCisd dc = array.get(drawn_cisds, k)
-                                if dc.group_key == gkey and dc.active
-                                    line.delete(dc.ln)
-                                    label.delete(dc.lb)
-                                    dc.active := false
-                                    array.remove(drawn_cisds, k)
-                                    break
-                        break
-            
-            if not already_exists
-                CisdState new_state = CisdState.new()
-                new_state.is_bear := array.get(pending_is_bear, i) == 1
-                new_state.t2_time := array.get(pending_t2, i)
-                new_state.p2_price := array.get(pending_p2, i)
-                new_state.trigger_idx := bar_index
-                new_state.origin_found := false 
-                new_state.group_key := gkey
-                new_state.drawn := false
-                array.push(cisd_states, new_state)
-                
-            if cisd_show_debug
-                lbl_trig = label.new(x=array.get(pending_t2, i), y=array.get(pending_p2, i), text="T", xloc=xloc.bar_time, yloc=yloc.price, style=label.style_label_down, color=color.new(color.red, 0), textcolor=color.white, size=size.tiny)
-                array.push(cisd_debug_labels, lbl_trig)
-                
-        array.clear(pending_t1)
-        array.clear(pending_t2)
-        array.clear(pending_p2)
-        array.clear(pending_is_bear)
-        array.clear(pending_gkey)
-
-    int search_limit = math.min(cisd_wait_bars + 5, bar_index)
-
-    if array.size(cisd_states) > 0
-        for i = array.size(cisd_states) - 1 to 0
-            CisdState st = array.get(cisd_states, i)
-            
-            int t2_offset = -1
-            for j = 0 to search_limit
-                if math.abs(time[j] - st.t2_time) <= 60000
-                    t2_offset := j
-                    break
-                    
-            if t2_offset == -1
-                if bar_index - st.trigger_idx > cisd_wait_bars
-                    array.remove(cisd_states, i)
-                continue
-                    
-            int t2_bar_idx = bar_index - t2_offset
-            
-            [op, oi, tag] = f_find_struc_origin(st.is_bear, t2_bar_idx)
-            if not na(op)
-                st.start_price := op
-                st.start_idx := oi
-                st.struc_tag := tag
-                
-                if cisd_show_debug and not st.drawn
-                    lbl_orig = label.new(x=oi, y=op, text=st.is_bear ? "L" : "H", xloc=xloc.bar_index, yloc=yloc.price, style=st.is_bear ? label.style_label_up : label.style_label_down, color=color.new(color.blue, 0), textcolor=color.white, size=size.tiny)
-                    array.push(cisd_debug_labels, lbl_orig)
-            
-            if not na(st.start_price) and bar_index > t2_bar_idx and not st.drawn
-                bool displaced = false
-                
-                if st.is_bear and close < st.start_price
-                    displaced := true
-                else if not st.is_bear and close > st.start_price
-                    displaced := true
-
-                if displaced
-                    if not use_cisd_sess or in_cisd_session
-                        int startX = st.start_idx 
-                        int endX = bar_index + cisd_line_length
-                        int cisd_w = cisd_line_width >= 2 ? cisd_line_width : 2
-                        
-                        int stagger_count = 0
-                        if array.size(drawn_cisds) > 0
-                            for k = array.size(drawn_cisds) - 1 to 0
-                                DrawnCisd check_dc = array.get(drawn_cisds, k)
-                                if check_dc.active and check_dc.is_bear == st.is_bear
-                                    float price_diff = math.abs(st.start_price - check_dc.price)
-                                    float threshold = math.max(st.start_price * 0.002, syminfo.mintick * 20)
-                                    if price_diff <= threshold
-                                        stagger_count += 1
-                                        
-                        int actual_endX = endX + (stagger_count * 5)
-
-                        l = line.new(startX, st.start_price, actual_endX, st.start_price, color=cisd_line_color, width=cisd_w, style=line.style_dotted)
-                        
-                        string hover_text = "=== CISD ===" + "\nType: " + (st.is_bear ? "Bearish" : "Bullish") + "\nOrigin Tag: " + (na(st.struc_tag) ? "N/A" : st.struc_tag) + "\nOrigin Price: " + str.tostring(st.start_price, format.mintick) + "\nOrigin Bar Idx: " + str.tostring(st.start_idx) + "\nSSMT Pivot Time: " + str.format_time(st.t2_time, "yyyy-MM-dd HH:mm", session_tz) + "\nSSMT Pivot Bar Idx: " + str.tostring(t2_bar_idx) + "\nDetection Bar Idx: " + str.tostring(st.trigger_idx) + "\nDisplacement Bar Idx: " + str.tostring(bar_index) + "\nDisplacement Close: " + str.tostring(close, format.mintick)
-
-                        lb = label.new(actual_endX, st.start_price, "CISD", xloc=xloc.bar_index, yloc=yloc.price, style=label.style_label_left, color=color.new(color.white,100), textcolor=cisd_text_color, size=size.normal, textalign=text.align_left, tooltip=hover_text)
-                        
-                        array.push(cisd_lines, l)
-                        array.push(cisd_labels, lb)
-                        
-                        DrawnCisd dc = DrawnCisd.new(l, lb, st.start_price, st.is_bear, true, st.group_key)
-                        array.push(drawn_cisds, dc)
-                            
-                    st.drawn := true 
-
-            if remove_invalidated_cisd and array.size(drawn_cisds) > 0
-                for k = array.size(drawn_cisds) - 1 to 0
-                    DrawnCisd dc = array.get(drawn_cisds, k)
-                    if dc.active and dc.group_key == st.group_key
-                        bool invalid = false
-                        if st.is_bear and close > dc.price
-                            invalid := true
-                        else if not st.is_bear and close < dc.price
-                            invalid := true
-                            
-                        if invalid
-                            line.delete(dc.ln)
-                            label.delete(dc.lb)
-                            dc.active := false
-                            array.remove(drawn_cisds, k)
-                            if array.size(cisd_states) > i
-                                array.remove(cisd_states, i)
-
-            if bar_index - t2_bar_idx > cisd_wait_bars and array.size(cisd_states) > i
-                if array.get(cisd_states, i).group_key == st.group_key and not st.drawn
-                    array.remove(cisd_states, i)
 
 
 // ═══════════════════════════════════════════════════════════════════════════════════
@@ -2606,9 +2487,8 @@ if merge_dup_labels and (barstate.islast or array.get(active_count, 0) != last_m
     f_merge_duplicate_labels()
     last_merged_size := array.get(active_count, 0)
 
-
 // ═══════════════════════════════════════════════════════════════════════════════════
-// DASHBOARD TABLE
+// DASHBOARD TABLE (DYNAMIC & MAGNET EXPANSION - NO BIA)
 // ═══════════════════════════════════════════════════════════════════════════════════
 f_get_chart_quarter_hl(string cycle, int val_ses) =>
     ChartQuarterTracker t = map.get(chart_qt_map, cycle)
@@ -2628,57 +2508,104 @@ f_get_chart_quarter_hl(string cycle, int val_ses) =>
     [t.hmax, t.lmin]
 
 f_render_table() =>
-    // Headers
+    // Headers (Removed BIA)
     table.cell(dashboard_tbl, 0, 0, "CYC", bgcolor=tbl_header_color, text_color=color.rgb(220, 220, 220), text_size=tbl_size)
     table.cell(dashboard_tbl, 1, 0, "Q",   bgcolor=tbl_header_color, text_color=color.rgb(220, 220, 220), text_size=tbl_size)
-    table.cell(dashboard_tbl, 2, 0, "S",   bgcolor=tbl_header_color, text_color=color.rgb(220, 220, 220), text_size=tbl_size, tooltip="SSMT (Wick Sweeps)")
-    table.cell(dashboard_tbl, 3, 0, "H",   bgcolor=tbl_header_color, text_color=color.rgb(220, 220, 220), text_size=tbl_size, tooltip="HSSMT (Body Sweeps)")
-    table.cell(dashboard_tbl, 4, 0, "I",   bgcolor=tbl_header_color, text_color=color.rgb(220, 220, 220), text_size=tbl_size, tooltip="ISSMT (Intermarket)")
-    table.cell(dashboard_tbl, 5, 0, "BIA", bgcolor=tbl_header_color, text_color=color.rgb(220, 220, 220), text_size=tbl_size)
+    table.cell(dashboard_tbl, 2, 0, "SSMT",bgcolor=tbl_header_color, text_color=color.rgb(220, 220, 220), text_size=tbl_size)
+    table.cell(dashboard_tbl, 3, 0, "PSP", bgcolor=tbl_header_color, text_color=color.rgb(220, 220, 220), text_size=tbl_size)
+    table.cell(dashboard_tbl, 4, 0, "SD",  bgcolor=tbl_header_color, text_color=color.rgb(220, 220, 220), text_size=tbl_size)
     
-    string[] cycle_names = array.from("Y", "Q", "MoC", "W", "D", "90m", "Mi")
-    string[] cycle_keys  = array.from("Y", "Q", "MoC", "W", "D", "90m", "Mi")
+    array<string> cycle_names = array.from("Y", "Q", "MoC", "W", "D", "90m", "Mi")
+    array<string> cycle_keys  = array.from("Y", "Q", "MoC", "W", "D", "90m", "Mi")
     
     int q90_val = math.max(1, math.min(4, (val_ses % 4) + 1))
     int qMi_val = math.max(1, math.min(4, (val_sesm % 4) + 1))
-    int[] cycle_qvals = array.from(val_sesY, val_sesQ, val_sesMo, val_sesW, val_sesD, q90_val, qMi_val)
+    
+    array<int> cycle_qvals = array.new<int>()
+    array.push(cycle_qvals, val_sesY)
+    array.push(cycle_qvals, val_sesQ)
+    array.push(cycle_qvals, val_sesMo)
+    array.push(cycle_qvals, val_sesW)
+    array.push(cycle_qvals, val_sesD)
+    array.push(cycle_qvals, q90_val)
+    array.push(cycle_qvals, qMi_val)
     
     int total_bull = 0
     int total_bear = 0
     bool overall_magnet = false
+    
+    int row_idx = 1 
     
     for i = 0 to 6
         string cname = array.get(cycle_names, i)
         string ckey  = array.get(cycle_keys, i)
         int qval     = array.get(cycle_qvals, i)
         
-        bool ssmt_bull = false, bool ssmt_bear = false
-        bool hssmt_bull = false, bool hssmt_bear = false
-        bool issmt_bull = false, bool issmt_bear = false
+        bool s_bull = false, bool h_bull = false
+        bool s_bear = false, bool h_bear = false
+        bool bull_sd_aligned  = false
+        bool bear_sd_aligned  = false
+        bool bull_psp_aligned = false
+        bool bear_psp_aligned = false
         
         string current_c_id = f_get_cycle_id(ckey)
-        
         int _sz = array.size(all_events)
+
+        // Time window: 15 minutes before/after SSMT end (in ms)
+        int time_window_ms = 15 * 60 * 1000 
+        
         if _sz > 0
             for j = 0 to _sz - 1
                 SsmtEvent ev = array.get(all_events, j)
-                // Removed 'not na(ev.lbl)' so the dashboard counts hidden merged labels
-                if ev.active and ev.current_txt != "" and ev.cycle == ckey and ev.cycle_id == current_c_id
-                    if ev.ev_type == "SSMT"
+                
+                if ev.active and ev.cycle == ckey and ev.cycle_id == current_c_id
+                    if ev.ev_type == "SSMT" or ev.ev_type == "HSSMT"
+                        float tol_sd = math.max(syminfo.mintick * 10, ev.price2 * 0.0005)
+                        
                         if ev.is_bear
-                            ssmt_bear := true
+                            if ev.ev_type == "SSMT"
+                                s_bear := true
+                            else
+                                h_bear := true
+                                
+                            // Check SD alignment with this SSMT (Price + Time Window)
+                            if not bear_sd_aligned
+                                for sig_ev in signal_history
+                                    bool price_match = not sig_ev.is_bull and sig_ev.is_sd and math.abs(sig_ev.price - ev.price2) <= tol_sd
+                                    bool time_match = math.abs(sig_ev.time_val - ev.time2) <= time_window_ms
+                                    if price_match and time_match
+                                        bear_sd_aligned := true
+                                        break
+                            // Check PSP alignment
+                            if not bear_psp_aligned
+                                for sig_ev in signal_history
+                                    bool price_match = not sig_ev.is_bull and not sig_ev.is_sd and math.abs(sig_ev.price - ev.price2) <= tol_sd
+                                    bool time_match = math.abs(sig_ev.time_val - ev.time2) <= time_window_ms
+                                    if price_match and time_match
+                                        bear_psp_aligned := true
+                                        break
                         else
-                            ssmt_bull := true
-                    else if ev.ev_type == "HSSMT"
-                        if ev.is_bear
-                            hssmt_bear := true
-                        else
-                            hssmt_bull := true
-                    else if ev.ev_type == "ISSMT"
-                        if ev.is_bear
-                            issmt_bear := true
-                        else
-                            issmt_bull := true
+                            if ev.ev_type == "SSMT"
+                                s_bull := true
+                            else
+                                h_bull := true
+                                
+                            // Check SD alignment with this SSMT (Price + Time Window)
+                            if not bull_sd_aligned
+                                for sig_ev in signal_history
+                                    bool price_match = sig_ev.is_bull and sig_ev.is_sd and math.abs(sig_ev.price - ev.price2) <= tol_sd
+                                    bool time_match = math.abs(sig_ev.time_val - ev.time2) <= time_window_ms
+                                    if price_match and time_match
+                                        bull_sd_aligned := true
+                                        break
+                            // Check PSP alignment
+                            if not bull_psp_aligned
+                                for sig_ev in signal_history
+                                    bool price_match = sig_ev.is_bull and not sig_ev.is_sd and math.abs(sig_ev.price - ev.price2) <= tol_sd
+                                    bool time_match = math.abs(sig_ev.time_val - ev.time2) <= time_window_ms
+                                    if price_match and time_match
+                                        bull_psp_aligned := true
+                                        break
         
         [ch_hmax, ch_lmin] = f_get_chart_quarter_hl(ckey, qval)
         float q_range = ch_hmax - ch_lmin
@@ -2694,275 +2621,230 @@ f_render_table() =>
         if bias_bear
             total_bear += 1
             
-        if ssmt_bull and ssmt_bear
+        if s_bull and s_bear
             overall_magnet := true
+            
+        // --- Directional Confirmation Logic with SSMT Alignment ---
+        string b_psp_txt = "•"
+        color b_psp_col = color.gray
+        string b_sd_txt = "•"
+        color b_sd_col = color.gray
+        string r_psp_txt = "•"
+        color r_psp_col = color.gray
+        string r_sd_txt = "•"
+        color r_sd_col = color.gray
         
-        // Alternating row backgrounds for readability
+        // Combined display: current bar OR historical alignment with active SSMT
+        bool bull_sd_show  = showBullSD  or bull_sd_aligned
+        bool bear_sd_show  = showBearSD  or bear_sd_aligned
+        bool bull_psp_show = finalBullSig or bull_psp_aligned
+        bool bear_psp_show = finalBearSig or bear_psp_aligned
+        
+        if ckey == "W"
+            if timeframe.period == "60"
+                b_psp_txt := bull_psp_show ? "✓" : "•"
+                b_psp_col := bull_psp_show ? color.new(#00B0FF, 0) : color.gray
+                b_sd_txt  := bull_sd_show ? "✓" : "•"
+                b_sd_col  := bull_sd_show ? color.new(#00B0FF, 0) : color.gray
+                r_psp_txt := bear_psp_show ? "✓" : "•"
+                r_psp_col := bear_psp_show ? color.new(#FF3D81, 0) : color.gray
+                r_sd_txt  := bear_sd_show ? "✓" : "•"
+                r_sd_col  := bear_sd_show ? color.new(#FF3D81, 0) : color.gray
+            else
+                b_psp_txt := "Move 1H"
+                b_sd_txt  := "Move 1H"
+                r_psp_txt := "Move 1H"
+                r_sd_txt  := "Move 1H"
+                
+        else if ckey == "D"
+            if timeframe.period == "15"
+                b_psp_txt := bull_psp_show ? "✓" : "•"
+                b_psp_col := bull_psp_show ? color.new(#00B0FF, 0) : color.gray
+                b_sd_txt  := bull_sd_show ? "✓" : "•"
+                b_sd_col  := bull_sd_show ? color.new(#00B0FF, 0) : color.gray
+                r_psp_txt := bear_psp_show ? "✓" : "•"
+                r_psp_col := bear_psp_show ? color.new(#FF3D81, 0) : color.gray
+                r_sd_txt  := bear_sd_show ? "✓" : "•"
+                r_sd_col  := bear_sd_show ? color.new(#FF3D81, 0) : color.gray
+            else
+                b_psp_txt := "Move 15m"
+                b_sd_txt  := "Move 15m"
+                r_psp_txt := "Move 15m"
+                r_sd_txt  := "Move 15m"
+                
+        else if ckey == "90m"
+            if timeframe.period == "5"
+                b_psp_txt := bull_psp_show ? "✓" : "•"
+                b_psp_col := bull_psp_show ? color.new(#00B0FF, 0) : color.gray
+                b_sd_txt  := bull_sd_show ? "✓" : "•"
+                b_sd_col  := bull_sd_show ? color.new(#00B0FF, 0) : color.gray
+                r_psp_txt := bear_psp_show ? "✓" : "•"
+                r_psp_col := bear_psp_show ? color.new(#FF3D81, 0) : color.gray
+                r_sd_txt  := bear_sd_show ? "✓" : "•"
+                r_sd_col  := bear_sd_show ? color.new(#FF3D81, 0) : color.gray
+            else if timeframe.period == "1" or timeframe.period == "15"
+                bool cur_5m_bull_sd  = mtf_5m_bull_sd
+                bool cur_5m_bear_sd  = mtf_5m_bear_sd
+                bool cur_5m_bull_psp = mtf_5m_bull_psp
+                bool cur_5m_bear_psp = mtf_5m_bear_psp
+                
+                if array.size(hist_5m_bull_sd) > 0
+                    for h = 0 to array.size(hist_5m_bull_sd) - 1
+                        if array.get(hist_5m_bull_sd, h)
+                            cur_5m_bull_sd := true
+                        if array.get(hist_5m_bear_sd, h)
+                            cur_5m_bear_sd := true
+                            
+                b_psp_txt := (cur_5m_bull_psp or bull_psp_show) ? "✓" : "•"
+                b_psp_col := (cur_5m_bull_psp or bull_psp_show) ? color.new(#00B0FF, 0) : color.gray
+                b_sd_txt  := (cur_5m_bull_sd or bull_sd_show) ? "✓" : "•"
+                b_sd_col  := (cur_5m_bull_sd or bull_sd_show) ? color.new(#00B0FF, 0) : color.gray
+                r_psp_txt := (cur_5m_bear_psp or bear_psp_show) ? "✓" : "•"
+                r_psp_col := (cur_5m_bear_psp or bear_psp_show) ? color.new(#FF3D81, 0) : color.gray
+                r_sd_txt  := (cur_5m_bear_sd or bear_sd_show) ? "✓" : "•"
+                r_sd_col  := (cur_5m_bear_sd or bear_sd_show) ? color.new(#FF3D81, 0) : color.gray
+            else
+                b_psp_txt := "Move 5m"
+                b_sd_txt  := "Move 5m"
+                r_psp_txt := "Move 5m"
+                r_sd_txt  := "Move 5m"
+                
+        else if ckey == "Mi"
+            if timeframe.period == "1"
+                b_psp_txt := bull_psp_show ? "✓" : "•"
+                b_psp_col := bull_psp_show ? color.new(#00B0FF, 0) : color.gray
+                b_sd_txt  := bull_sd_show ? "✓" : "•"
+                b_sd_col  := bull_sd_show ? color.new(#00B0FF, 0) : color.gray
+                r_psp_txt := bear_psp_show ? "✓" : "•"
+                r_psp_col := bear_psp_show ? color.new(#FF3D81, 0) : color.gray
+                r_sd_txt  := bear_sd_show ? "✓" : "•"
+                r_sd_col  := bear_sd_show ? color.new(#FF3D81, 0) : color.gray
+            else
+                b_psp_txt := "Move 1m"
+                b_sd_txt  := "Move 1m"
+                r_psp_txt := "Move 1m"
+                r_sd_txt  := "Move 1m"
+                
+        else
+            // Y, Q, MoC — Show gray dashes instead of signals
+            b_psp_txt := "--"
+            b_psp_col := color.gray
+            b_sd_txt  := "--"
+            b_sd_col  := color.gray
+            r_psp_txt := "--"
+            r_psp_col := color.gray
+            r_sd_txt  := "--"
+            r_sd_col  := color.gray        
+        bool is_magnet = (s_bull or h_bull) and (s_bear or h_bear)
         color row_bg = i % 2 == 0 ? color.new(#121212, 0) : color.new(#1A1A1A, 0)
-        table.cell(dashboard_tbl, 0, i+1, cname, bgcolor=row_bg, text_color=color.rgb(200, 200, 200), text_size=tbl_size)
-        table.cell(dashboard_tbl, 1, i+1, "Q" + str.tostring(qval), bgcolor=row_bg, text_color=color.rgb(200, 200, 200), text_size=tbl_size)
         
-        // SSMT Logic
-        string s_txt = ssmt_bull and ssmt_bear ? "⇅" : ssmt_bull ? "▲" : ssmt_bear ? "▼" : "•"
-        color s_bg = ssmt_bull and ssmt_bear ? tbl_magnet_color : ssmt_bull ? tbl_bull_color : ssmt_bear ? tbl_bear_color : tbl_neutral_color
-        color s_txt_col = (ssmt_bull and ssmt_bear) ? color.black : (ssmt_bull or ssmt_bear) ? color.white : color.rgb(100, 100, 100)
-        table.cell(dashboard_tbl, 2, i+1, s_txt, bgcolor=s_bg, text_color=s_txt_col, text_size=tbl_size)
-        
-        // HSSMT Logic
-        string h_txt = hssmt_bull and hssmt_bear ? "⇅" : hssmt_bull ? "▲" : hssmt_bear ? "▼" : "•"
-        color h_bg = hssmt_bull and hssmt_bear ? tbl_magnet_color : hssmt_bull ? tbl_bull_color : hssmt_bear ? tbl_bear_color : tbl_neutral_color
-        color h_txt_col = (hssmt_bull and hssmt_bear) ? color.black : (hssmt_bull or hssmt_bear) ? color.white : color.rgb(100, 100, 100)
-        table.cell(dashboard_tbl, 3, i+1, h_txt, bgcolor=h_bg, text_color=h_txt_col, text_size=tbl_size)
-        
-        // ISSMT Logic
-        string i_txt = issmt_bull and issmt_bear ? "⇅" : issmt_bull ? "▲" : issmt_bear ? "▼" : "•"
-        color i_bg = issmt_bull and issmt_bear ? tbl_magnet_color : issmt_bull ? tbl_bull_color : issmt_bear ? tbl_bear_color : tbl_neutral_color
-        color i_txt_col = (issmt_bull and issmt_bear) ? color.black : (issmt_bull or issmt_bear) ? color.white : color.rgb(100, 100, 100)
-        table.cell(dashboard_tbl, 4, i+1, i_txt, bgcolor=i_bg, text_color=i_txt_col, text_size=tbl_size)
-        
-        // BIAS Logic
-        string b_txt = bias_bull and bias_bear ? "⇅" : bias_bull ? "▲" : bias_bear ? "▼" : "•"
-        color b_bg = bias_bull and bias_bear ? tbl_magnet_color : bias_bull ? tbl_bull_color : bias_bear ? tbl_bear_color : tbl_neutral_color
-        color b_txt_col = (bias_bull and bias_bear) ? color.black : (bias_bull or bias_bear) ? color.white : color.rgb(100, 100, 100)
-        table.cell(dashboard_tbl, 5, i+1, b_txt, bgcolor=b_bg, text_color=b_txt_col, text_size=tbl_size)
-    
+        // Soft Yellow Background with Bubblegum Blue/Pink Text for Magnet
+        if is_magnet
+            // Row 1: Bull
+            string b_txt = s_bull ? "S✓" : "H✓"
+            table.cell(dashboard_tbl, 0, row_idx, cname, bgcolor=tbl_magnet_color, text_color=color.new(#00B0FF, 0), text_size=tbl_size)
+            table.cell(dashboard_tbl, 1, row_idx, "Q" + str.tostring(qval), bgcolor=tbl_magnet_color, text_color=color.new(#00B0FF, 0), text_size=tbl_size)
+            table.cell(dashboard_tbl, 2, row_idx, b_txt, bgcolor=tbl_magnet_color, text_color=color.new(#00B0FF, 0), text_size=tbl_size)
+            table.cell(dashboard_tbl, 3, row_idx, b_psp_txt, bgcolor=tbl_magnet_color, text_color=b_psp_col, text_size=tbl_size)
+            table.cell(dashboard_tbl, 4, row_idx, b_sd_txt, bgcolor=tbl_magnet_color, text_color=b_sd_col, text_size=tbl_size)
+            row_idx += 1
+            
+            // Row 2: Bear
+            string r_txt = s_bear ? "S✓" : "H✓"
+            table.cell(dashboard_tbl, 0, row_idx, cname, bgcolor=tbl_magnet_color, text_color=color.new(#FF3D81, 0), text_size=tbl_size)
+            table.cell(dashboard_tbl, 1, row_idx, "Q" + str.tostring(qval), bgcolor=tbl_magnet_color, text_color=color.new(#FF3D81, 0), text_size=tbl_size)
+            table.cell(dashboard_tbl, 2, row_idx, r_txt, bgcolor=tbl_magnet_color, text_color=color.new(#FF3D81, 0), text_size=tbl_size)
+            table.cell(dashboard_tbl, 3, row_idx, r_psp_txt, bgcolor=tbl_magnet_color, text_color=r_psp_col, text_size=tbl_size)
+            table.cell(dashboard_tbl, 4, row_idx, r_sd_txt, bgcolor=tbl_magnet_color, text_color=r_sd_col, text_size=tbl_size)
+            row_idx += 1
+        else if (s_bull or h_bull)
+            string b_txt = s_bull ? "S✓" : "H✓"
+            table.cell(dashboard_tbl, 0, row_idx, cname, bgcolor=row_bg, text_color=color.rgb(200, 200, 200), text_size=tbl_size)
+            table.cell(dashboard_tbl, 1, row_idx, "Q" + str.tostring(qval), bgcolor=row_bg, text_color=color.rgb(200, 200, 200), text_size=tbl_size)
+            table.cell(dashboard_tbl, 2, row_idx, b_txt, bgcolor=row_bg, text_color=color.new(#00B0FF, 0), text_size=tbl_size)
+            table.cell(dashboard_tbl, 3, row_idx, b_psp_txt, bgcolor=row_bg, text_color=b_psp_col, text_size=tbl_size)
+            table.cell(dashboard_tbl, 4, row_idx, b_sd_txt, bgcolor=row_bg, text_color=b_sd_col, text_size=tbl_size)
+            row_idx += 1
+        else if (s_bear or h_bear)
+            string r_txt = s_bear ? "S✓" : "H✓"
+            table.cell(dashboard_tbl, 0, row_idx, cname, bgcolor=row_bg, text_color=color.rgb(200, 200, 200), text_size=tbl_size)
+            table.cell(dashboard_tbl, 1, row_idx, "Q" + str.tostring(qval), bgcolor=row_bg, text_color=color.rgb(200, 200, 200), text_size=tbl_size)
+            table.cell(dashboard_tbl, 2, row_idx, r_txt, bgcolor=row_bg, text_color=color.new(#FF3D81, 0), text_size=tbl_size)
+            table.cell(dashboard_tbl, 3, row_idx, r_psp_txt, bgcolor=row_bg, text_color=r_psp_col, text_size=tbl_size)
+            table.cell(dashboard_tbl, 4, row_idx, r_sd_txt, bgcolor=row_bg, text_color=r_sd_col, text_size=tbl_size)
+            row_idx += 1
+        else
+            table.cell(dashboard_tbl, 0, row_idx, cname, bgcolor=row_bg, text_color=color.rgb(200, 200, 200), text_size=tbl_size)
+            table.cell(dashboard_tbl, 1, row_idx, "Q" + str.tostring(qval), bgcolor=row_bg, text_color=color.rgb(200, 200, 200), text_size=tbl_size)
+            table.cell(dashboard_tbl, 2, row_idx, "•", bgcolor=row_bg, text_color=color.rgb(100, 100, 100), text_size=tbl_size)
+            table.cell(dashboard_tbl, 3, row_idx, "•", bgcolor=row_bg, text_color=color.gray, text_size=tbl_size)
+            table.cell(dashboard_tbl, 4, row_idx, "•", bgcolor=row_bg, text_color=color.gray, text_size=tbl_size)
+            row_idx += 1
+
     // Bottom Row (Overall Bias)
-    table.cell(dashboard_tbl, 0, 8, "TOT", bgcolor=tbl_header_color, text_color=color.rgb(220, 220, 220), text_size=tbl_size)
-    table.cell(dashboard_tbl, 1, 8, "", bgcolor=tbl_header_color, text_color=color.white, text_size=tbl_size)
+    table.cell(dashboard_tbl, 0, row_idx, "TOT", bgcolor=tbl_header_color, text_color=color.rgb(220, 220, 220), text_size=tbl_size)
+    table.cell(dashboard_tbl, 1, row_idx, "", bgcolor=tbl_header_color, text_color=color.white, text_size=tbl_size)
     
-    string overall_ssmt_txt = overall_magnet ? "⇅" : total_bull > total_bear ? "▲" : total_bear > total_bull ? "▼" : "•"
-    color overall_bg = overall_magnet ? tbl_magnet_color : total_bull > total_bear ? tbl_bull_color : total_bear > total_bull ? tbl_bear_color : tbl_neutral_color
+    string overall_ssmt_txt = overall_magnet ? "MAG" : total_bull > total_bear ? "Bull" : total_bear > total_bull ? "Bear" : "•"
+    color overall_bg = overall_magnet ? color.new(#FFD740, 0) : total_bull > total_bear ? color.new(#00B0FF, 0) : total_bear > total_bull ? color.new(#FF3D81, 0) : tbl_neutral_color
     color overall_txt_col = overall_magnet ? color.black : (total_bull > 0 or total_bear > 0) ? color.white : color.rgb(100, 100, 100)
     
-    table.cell(dashboard_tbl, 2, 8, overall_ssmt_txt, bgcolor=overall_bg, text_color=overall_txt_col, text_size=tbl_size)
-    table.cell(dashboard_tbl, 3, 8, "", bgcolor=tbl_header_color, text_color=color.white, text_size=tbl_size)
-    table.cell(dashboard_tbl, 4, 8, "", bgcolor=tbl_header_color, text_color=color.white, text_size=tbl_size)
-    table.cell(dashboard_tbl, 5, 8, overall_ssmt_txt, bgcolor=overall_bg, text_color=overall_txt_col, text_size=tbl_size)
+    table.cell(dashboard_tbl, 2, row_idx, overall_ssmt_txt, bgcolor=overall_bg, text_color=overall_txt_col, text_size=tbl_size)
+    table.cell(dashboard_tbl, 3, row_idx, "", bgcolor=tbl_header_color, text_color=color.white, text_size=tbl_size)
+    table.cell(dashboard_tbl, 4, row_idx, "", bgcolor=tbl_header_color, text_color=color.white, text_size=tbl_size)
 
 if barstate.islast and show_table and quick_Table
     f_render_table()
 // ═══════════════════════════════════════════════════════════════════════════════════
-// RENDERING: TRUE OPENS, PDH/PWL, & DEVIL'S MARK
+// RENDERING: HOD/LOD TESTING 
 // ═══════════════════════════════════════════════════════════════════════════════════
-var array<line>  nyamLn   = array.new<line>()
-var array<label> nyamLb   = array.new<label>()
-var array<line>  tmsoLn   = array.new<line>()
-var array<label> tmsoLb   = array.new<label>()
-var array<line>  doLn     = array.new<line>()
-var array<label> doLb     = array.new<label>()
-var array<line>  dayLn    = array.new<line>()
-var array<label> dayLb    = array.new<label>()
-var array<line>  wkLn     = array.new<line>()
-var array<label> wkLb     = array.new<label>()
-var array<line>  woLn     = array.new<line>()   // NEW
-var array<label> woLb     = array.new<label>()  // NEW
-var array<line>  moLn     = array.new<line>()
-var array<label> moLb     = array.new<label>()
-var array<line>  yoLn     = array.new<line>()   // NEW
-var array<label> yoLb     = array.new<label>()  // NEW
-var array<line>  yrLn     = array.new<line>()
-var array<label> yrLb     = array.new<label>()
-var array<line>  pdhLn    = array.new<line>()
-var array<label> pdhLb    = array.new<label>()
-var array<line>  pdlLn    = array.new<line>()
-var array<label> pdlLb    = array.new<label>()
-var array<line>  pwhLn    = array.new<line>()
-var array<label> pwhLb    = array.new<label>()
-var array<line>  pwlLn    = array.new<line>()
-var array<label> pwlLb    = array.new<label>()
 var array<line>  hodLn    = array.new<line>()
 var array<label> hodLb    = array.new<label>()
 var array<line>  lodLn    = array.new<line>()
 var array<label> lodLb    = array.new<label>()
 
-var line[] activeLines = array.new<line>()
-var label[] activeLabels = array.new_label()
-var int[] activeTypes = array.new_int() // 1 for Bullish, -1 for Bearish
+tipHOD = "HIGH OF DAY (HOD)\nCurrent daily cycle high based on True Day Open (18:00 NY)."
+tipLOD = "LOW OF DAY (LOD)\nCurrent daily cycle low based on True Day Open (18:00 NY)."
 
-f_create(array<line> lns, array<label> lbs, float price, color col, string txt, string tip, color txtCol = na, string lnSt = "global", string lblSz = "small") =>
-    cText   = na(txtCol) ? col : txtCol
-    isPdl   = lnSt == "pdhpwl"
-    cStyle  = isPdl ? pdhPwlLnStyl : (lnSt == "global" ? lineStyle : (lnSt == "dotted" ? line.style_dotted : (lnSt == "dashed" ? line.style_dashed : line.style_solid)))
-    cWidth  = isPdl ? pdhPwlWidth : lineWidthIn
-    cSize   = lblSz == "normal" ? size.normal : (lblSz == "tiny" ? size.tiny : size.small)
-    padTxt  = " " + txt + " "
-    
-    ln = line.new(bar_index, price, bar_index + math.max(labelGap, 1), price, color = col, width = cWidth, style = cStyle, extend = extend.none)
-    array.push(lns, ln)
-    if showLabels
-        lb = label.new(bar_index, price, padTxt, color = color.new(color.black, 100), textcolor = cText, style = label.style_label_left, size = cSize, tooltip = tip, textalign = text.align_left)
-        array.push(lbs, lb)
-    
-    int maxKeep = showHistory ? 50 : 1
-    while array.size(lns) > maxKeep
-        line.delete(array.shift(lns))
-    while array.size(lbs) > maxKeep
-        label.delete(array.shift(lbs))
+if showHOD_LOD_Test and is1800
+    line hL = line.new(bar_index, high, bar_index + 10, high, color=hodLodColor, width=hodLodWidth, style=line.style_solid, extend=extend.none)
+    array.push(hodLn, hL)
+    label hLb = label.new(bar_index + 10, high, " HOD ", color=color.new(color.black, 100), textcolor=hodLodTxtCol, style=label.style_label_left, size=size.small, tooltip=tipHOD)
+    array.push(hodLb, hLb)
 
-f_extend(array<line> lns, array<label> lbs) =>
-    int lastIdx = array.size(lns) > 0 ? array.size(lns) - 1 : -1
-    if lastIdx >= 0
-        line l = array.get(lns, lastIdx)
-        if bar_index > line.get_x2(l)
-            line.set_x2(l, bar_index)
-    if lastIdx >= 0 and array.size(lbs) > 0
-        label.set_x(array.get(lbs, lastIdx), bar_index + labelGap)
+    line lL = line.new(bar_index, low, bar_index + 10, low, color=hodLodColor, width=hodLodWidth, style=line.style_solid, extend=extend.none)
+    array.push(lodLn, lL)
+    label lLb = label.new(bar_index + 10, low, " LOD ", color=color.new(color.black, 100), textcolor=hodLodTxtCol, style=label.style_label_left, size=size.small, tooltip=tipLOD)
+    array.push(lodLb, lLb)
 
-f_extend_session(array<line> lns, array<label> lbs, bool inSession) =>
-    int lastIdx = array.size(lns) > 0 ? array.size(lns) - 1 : -1
-    if lastIdx >= 0 and inSession
-        line l = array.get(lns, lastIdx)
-        if bar_index > line.get_x2(l)
-            line.set_x2(l, bar_index)
-    if lastIdx >= 0 and inSession and array.size(lbs) > 0
-        label.set_x(array.get(lbs, lastIdx), bar_index + labelGap)
+    while array.size(hodLn) > 1
+        line.delete(array.shift(hodLn))
+        label.delete(array.shift(hodLb))
+    while array.size(lodLn) > 1
+        line.delete(array.shift(lodLn))
+        label.delete(array.shift(lodLb))
 
-tipNYAM   = "True Session Open (TNY)\nDaye Quarterly Theory — Q2 open of the NY AM session (07:30 NY). Extends to 11:00 NY."
-tipTMSO   = "True Market Session Open (TMSO)\n9:30 AM NY regular market open."
-tipHOD    = "High of Day (HOD)\nCurrent daily cycle high based on True Day Open (18:00 NY)."
-tipLOD    = "Low of Day (LOD)\nCurrent daily cycle low based on True Day Open (18:00 NY)."
-tipDO     = "Daily Open\n18:00 NY (Previous Day)"
-tipDay    = "True Day Open\n00:00 NY"
-tipWO     = "Week Open\nSunday 18:00 NY"
-tipMO     = "Month Open\n1st of the Month 00:00 NY"  
-tipYO     = "Year Open\nJanuary 1st 00:00 NY"
-tipWeek   = "True Week Open\nDaye Quarterly Theory — Q2 open of the weekly cycle (Mon 18:00 NY)."
-tipMonth  = "True Month Open\nDaye Quarterly Theory — Q2 open of the monthly cycle (2nd Monday 18:00 NY)."
-tipYear   = "True Year Open\nDaye Quarterly Theory — Q2 open of the yearly cycle (April 1, 00:00 NY).\nYear quarters: Q1 Jan-Mar, Q2 Apr-Jun, Q3 Jul-Sep, Q4 Oct-Dec."
-tipPDH    = "Previous Day High (PDH)\nBased on the True Day Open (18:00 NY) cycle."
-tipPDL    = "Previous Day Low (PDL)\nBased on the True Day Open (18:00 NY) cycle."
-tipPWH    = "Previous Week High (PWH)\nBased on the True Week Open (Mon 18:00 NY) cycle."
-tipPWL    = "Previous Week Low (PWL)\nBased on the True Week Open (Mon 18:00 NY) cycle."
-
-if showSessions and isNYAM
-    f_create(nyamLn, nyamLb, open, sessionColor, "TNY", tipNYAM, opensTextColor, "global", "small")
-if showTMSO and is930
-    f_create(tmsoLn, tmsoLb, open, sessionColor, "TMSO", tipTMSO, opensTextColor, "global", "small")
-if showDO and isDO
-    f_create(doLn,   doLb,   open, doColor,      "DO",         tipDO,   opensTextColor, "global", "small")
-if showDay and isTrueDay
-    f_create(dayLn,  dayLb,  open, dayColor,     "TDO",        tipDay,  opensTextColor, "global", "small")
-if showWO and isWO
-    f_create(woLn,   woLb,   open, woColor,      "WO",         tipWO,   opensTextColor, "global", "small")
-if showWeek and isTrueWk
-    f_create(wkLn,   wkLb,   open, weekColor,    "TWO",        tipWeek, opensTextColor, "global", "small")
-if showMO and isMO
-    f_create(moLn,   moLb,   open, moColor,      "MoC",         tipMO,   opensTextColor, "global", "small")
-if showMonth and isTrueMo
-    f_create(moLn,   moLb,   open, monthColor,   "TMO",        tipMonth,opensTextColor, "global", "small")
-if showYO and isYO
-    f_create(yoLn,   yoLb,   open, yoColor,      "YO",         tipYO,   opensTextColor, "global", "small")
-if showYear and isTrueYr
-    f_create(yrLn,   yrLb,   open, yearColor,    "TYO",        tipYear, opensTextColor, "global", "small")
-
-if showHOD_LOD and is1800
-    f_create(hodLn, hodLb, high, pdhPwlColor, "HOD", tipHOD, pdhPwlTextColor, "pdhpwl", "normal")
-    f_create(lodLn, lodLb, low, pdhPwlColor, "LOD", tipLOD, pdhPwlTextColor, "pdhpwl", "normal")
-
-if showPDH_PDL and is1800 and not na(pdh)
-    f_create(pdhLn, pdhLb, pdh, pdhPwlColor, "PDH", tipPDH, pdhPwlTextColor, "pdhpwl", "normal")
-if showPDH_PDL and is1800 and not na(pdl)
-    f_create(pdlLn, pdlLb, pdl, pdhPwlColor, "PDL", tipPDL, pdhPwlTextColor, "pdhpwl", "normal")
-if showPWH_PWL and isTrueWk and tfIs5mOrHigher and not na(pwh)
-    f_create(pwhLn, pwhLb, pwh, pdhPwlColor, "PWH", tipPWH, pdhPwlTextColor, "pdhpwl", "normal")
-if showPWH_PWL and isTrueWk and tfIs5mOrHigher and not na(pwl)
-    f_create(pwlLn, pwlLb, pwl, pdhPwlColor, "PWL", tipPWL, pdhPwlTextColor, "pdhpwl", "normal")
-f_extend_session(nyamLn, nyamLb, inTNYSession)
-f_extend_session(tmsoLn, tmsoLb, inTMSOSession)
-f_extend(tmsoLn,       tmsoLb)
-f_extend(doLn,       doLb)
-f_extend(dayLn,      dayLb)
-f_extend(woLn,       woLb)       
-f_extend(wkLn,       wkLb)
-f_extend(moLn,       moLb)       
-f_extend(moLn,       moLb)
-f_extend(yrLn,       yrLb)
-f_extend(yoLn,       yoLb)       
-f_extend(pdhLn,      pdhLb)
-f_extend(pdlLn,      pdlLb)
-f_extend(pwhLn,      pwhLb)
-f_extend(pwlLn,      pwlLb)
-
-if showHOD_LOD and array.size(hodLn) > 0
+if showHOD_LOD_Test and array.size(hodLn) > 0
     int lastIdx = array.size(hodLn) - 1
     line lH = array.get(hodLn, lastIdx)
+    line.set_x1(lH, hodBar)
     line.set_y1(lH, curDh)
     line.set_y2(lH, curDh)
     if bar_index > line.get_x2(lH)
         line.set_x2(lH, bar_index)
     if array.size(hodLb) > 0
-        label.set_xy(array.get(hodLb, lastIdx), bar_index + labelGap, curDh)
+        label.set_xy(array.get(hodLb, lastIdx), bar_index + 10, curDh)
         
     int lastIdxL = array.size(lodLn) - 1
     line lL = array.get(lodLn, lastIdxL)
+    line.set_x1(lL, lodBar)
     line.set_y1(lL, curDl)
     line.set_y2(lL, curDl)
     if bar_index > line.get_x2(lL)
         line.set_x2(lL, bar_index)
     if array.size(lodLb) > 0
-        label.set_xy(array.get(lodLb, lastIdxL), bar_index + labelGap, curDl)
+        label.set_xy(array.get(lodLb, lastIdxL), bar_index + 10, curDl)
 
-if openCondition or currentCondition
-    float price = openCondition ? o_tf : open
-    color lineColor = openCondition ? (o_tf == h_tf ? i_openHighColor : i_openLowColor) : (open == high ? i_currentOpenHighColor : i_currentOpenLowColor)
-    int length   = openCondition ? i_lineLength : i_currentLineLength
-    int dmWidth  = openCondition ? i_hLineWidth : i_currentLineWidth
-    
-    // Solid line as requested
-    line newLine = line.new(x1 = bar_index, y1 = price, x2 = bar_index + length, y2 = price, color = lineColor, style = line.style_solid, width = dmWidth)
-    array.push(activeLines, newLine)
-    
-    // Store the type: 1 for Bullish (Open == Low), -1 for Bearish (Open == High)
-    int dmType = openCondition ? (o_tf == l_tf ? 1 : -1) : (open == low ? 1 : -1)
-    array.push(activeTypes, dmType)
-
-    string dmLabelText = openCondition ? i_emojiLabel : i_currentEmojiLabel
-    
-    // Formatted time (yyyy-MM-dd HH:mm)
-    string formattedTime = str.format_time(time, "yyyy-MM-dd HH:mm", syminfo.timezone)
-    
-    string dmTooltip = ""
-    if openCondition
-        string dmType = o_tf == h_tf ? "Bearish (Open == High)" : "Bullish (Open == Low)"
-        dmTooltip := "=== Devil's Mark (HTF) ===" + "\nTimeframe: " + i_tf + "\nType: " + dmType + "\nOpen Price: " + str.tostring(price, format.mintick) + "\nBar Time: " + formattedTime
-    else if currentCondition
-        string dmType = open == high ? "Bearish (Open == High)" : "Bullish (Open == Low)"
-        dmTooltip := "=== Devil's Mark (CTF) ===" + "\nTimeframe: " + timeframe.period + "\nType: " + dmType + "\nOpen Price: " + str.tostring(price, format.mintick) + "\nBar Time: " + formattedTime
-
-    // Reverted to original floating label at the end of the line (no box/tag on the line)
-    label newLabel = label.new(x = bar_index + length, y = price, text = dmLabelText, yloc = yloc.price, style = label.style_none, textcolor = lineColor, size = size.normal, tooltip = dmTooltip)
-    array.push(activeLabels, newLabel)
-
-if array.size(activeLines) > 0
-    for i = array.size(activeLines) - 1 to 0 by 1
-        line currentLine = array.get(activeLines, i)
-        label currentLabel = array.get(activeLabels, i)
-        int currentType = array.get(activeTypes, i)
-        
-        bool shouldDelete = false
-
-        if na(currentLine)
-            shouldDelete := true
-        else if bar_index >= line.get_x1(currentLine) // Changed > to >= so it checks instantly
-            float lineY = line.get_y1(currentLine)
-            
-            // Invalidate instantly if price breaks the open in the wrong direction
-            if currentType == -1 // Bearish (Open == High)
-                if high > lineY or close > lineY
-                    shouldDelete := true
-            else if currentType == 1 // Bullish (Open == Low)
-                if low < lineY or close < lineY
-                    shouldDelete := true
-        
-        if shouldDelete
-            if not showHistory 
-                line.delete(currentLine)
-                label.delete(currentLabel)
-            array.remove(activeLines, i)
-            array.remove(activeLabels, i)
-            array.remove(activeTypes, i)
-
-// ═══════════════════════════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════════════════════════
 // Alerts
 alertcondition(rawBullSD and sdValid,                           title="SD Bullish Divergence", message="Swing Divergence Bullish detected")
